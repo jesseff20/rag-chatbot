@@ -1,0 +1,52 @@
+[
+  {
+    "role": "user",
+    "content": "olá",
+    "timestamp": "2025-08-29T19:52:04.238152"
+  },
+  {
+    "role": "assistant",
+    "content": "Para informações específicas sobre nossos serviços, entre em contato com nossa equipe da ICTA Technology.",
+    "timestamp": "2025-08-29T19:52:07.768527"
+  },
+  {
+    "role": "user",
+    "content": "legal",
+    "timestamp": "2025-08-29T19:52:13.773150"
+  },
+  {
+    "role": "assistant",
+    "content": "Para informações específicas sobre nossos serviços, entre em contato com nossa equipe da ICTA Technology.",
+    "timestamp": "2025-08-29T19:52:16.801699"
+  },
+  {
+    "role": "user",
+    "content": "me fale sobre a icta",
+    "timestamp": "2025-08-29T19:52:23.608426"
+  },
+  {
+    "role": "assistant",
+    "content": "Para informações específicas sobre nossos serviços, entre em contato com nossa equipe da ICTA Technology.",
+    "timestamp": "2025-08-29T19:52:26.325108"
+  },
+  {
+    "role": "user",
+    "content": "olá",
+    "timestamp": "2025-08-29T19:52:36.616096"
+  },
+  {
+    "role": "assistant",
+    "content": "Para informações específicas sobre nossos serviços, entre em contato com nossa equipe da ICTA Technology.",
+    "timestamp": "2025-08-29T19:52:39.339852"
+  },
+  {
+    "role": "user",
+    "content": "me fale mais de vc",
+    "timestamp": "2025-08-29T19:52:54.904239"
+  },
+  {
+    "role": "assistant",
+    "content": "Para informações específicas sobre nossos serviços, entre em contato com nossa equipe da ICTA Technology.",
+    "timestamp": "2025-08-29T19:52:57.627694"
+  }
+]

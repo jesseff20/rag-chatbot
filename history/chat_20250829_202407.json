@@ -1,0 +1,52 @@
+[
+  {
+    "role": "user",
+    "content": "olá",
+    "timestamp": "2025-08-29T20:23:01.114246"
+  },
+  {
+    "role": "assistant",
+    "content": "olhá-la\nExposta: Olhá-me\nRedação dada por:",
+    "timestamp": "2025-08-29T20:23:08.208998"
+  },
+  {
+    "role": "user",
+    "content": "fala ais sobre a icta",
+    "timestamp": "2025-08-29T20:23:17.848979"
+  },
+  {
+    "role": "assistant",
+    "content": "A ICTA Technology é uma consultoria especializada em Business Intelligence, automação de processos, inteligência artificial e integrações com sistemas ERP. Oferecemos soluções personalizadas para empresas.",
+    "timestamp": "2025-08-29T20:23:22.600012"
+  },
+  {
+    "role": "user",
+    "content": "legal e os prelos?",
+    "timestamp": "2025-08-29T20:23:31.766941"
+  },
+  {
+    "role": "assistant",
+    "content": "A ICTA Technology oferece soluções em Business Intelligence, automação e inteligência artificial. Entre em contato para mais informações.",
+    "timestamp": "2025-08-29T20:23:36.617497"
+  },
+  {
+    "role": "user",
+    "content": "é caro?",
+    "timestamp": "2025-08-29T20:23:43.927476"
+  },
+  {
+    "role": "assistant",
+    "content": "A ICTA Technology oferece soluções em Business Intelligence, automação e inteligência artificial. Entre em contato para mais informações.",
+    "timestamp": "2025-08-29T20:23:48.632817"
+  },
+  {
+    "role": "user",
+    "content": "fala alguma coisa util",
+    "timestamp": "2025-08-29T20:23:57.537923"
+  },
+  {
+    "role": "assistant",
+    "content": "sta da ICTA para ajudá-lo(a).\"",
+    "timestamp": "2025-08-29T20:24:02.650113"
+  }
+]

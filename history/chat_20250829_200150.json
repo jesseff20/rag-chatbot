@@ -1,0 +1,82 @@
+[
+  {
+    "role": "user",
+    "content": "olá",
+    "timestamp": "2025-08-29T19:59:41.869144"
+  },
+  {
+    "role": "assistant",
+    "content": "Olá! Sou o assistente da ICTA Technology. Posso ajudar com informações sobre Business Intelligence, automação de processos e inteligência artificial. Como posso ajudá-lo?",
+    "timestamp": "2025-08-29T19:59:46.607319"
+  },
+  {
+    "role": "user",
+    "content": "legal, falei mais de vcs",
+    "timestamp": "2025-08-29T19:59:53.831264"
+  },
+  {
+    "role": "assistant",
+    "content": "Posso ajudar com informações sobre os serviços da ICTA Technology em Business Intelligence, automação e IA. O que gostaria de saber especificamente?",
+    "timestamp": "2025-08-29T19:59:57.646508"
+  },
+  {
+    "role": "user",
+    "content": "e aoande vcs ficam?",
+    "timestamp": "2025-08-29T20:00:05.386545"
+  },
+  {
+    "role": "assistant",
+    "content": "ICTA Technology",
+    "timestamp": "2025-08-29T20:00:08.628890"
+  },
+  {
+    "role": "user",
+    "content": "quem é o ceo?",
+    "timestamp": "2025-08-29T20:00:17.636745"
+  },
+  {
+    "role": "assistant",
+    "content": "ICTA Technology",
+    "timestamp": "2025-08-29T20:00:20.554258"
+  },
+  {
+    "role": "user",
+    "content": "qual os produtos?",
+    "timestamp": "2025-08-29T20:00:29.825497"
+  },
+  {
+    "role": "assistant",
+    "content": "ICTA Technology",
+    "timestamp": "2025-08-29T20:00:32.960885"
+  },
+  {
+    "role": "user",
+    "content": "quais os preços?",
+    "timestamp": "2025-08-29T20:00:40.532536"
+  },
+  {
+    "role": "assistant",
+    "content": "dos, suporte técnico especializado, e preços diferenciados para nossos clientes. [TAGS: integracao_erp, inteligencia_artificial]",
+    "timestamp": "2025-08-29T20:00:44.572338"
+  },
+  {
+    "role": "user",
+    "content": "legal",
+    "timestamp": "2025-08-29T20:01:00.002322"
+  },
+  {
+    "role": "assistant",
+    "content": "Posso ajudar com informações sobre os serviços da ICTA Technology em Business Intelligence, automação e IA. O que gostaria de saber especificamente?",
+    "timestamp": "2025-08-29T20:01:03.514900"
+  },
+  {
+    "role": "user",
+    "content": "vc sabem de BI?",
+    "timestamp": "2025-08-29T20:01:13.626957"
+  },
+  {
+    "role": "assistant",
+    "content": "[BUSINESS INTELLIGENCE] CONTEÚDO: Business Intelligence (BI) é um conjunto de tecnologias e processos que transformam dados brutos em informações estratégicas para tomada de decisão.",
+    "timestamp": "2025-08-29T20:01:16.576613"
+  }
+]

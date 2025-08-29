@@ -38,12 +38,13 @@ DEFAULT_CONFIG = {
     "meta_path": "./index/meta.jsonl",
     "settings_path": "./index/settings.json",
     "history_path": "./history/chat_history.jsonl",
-    "chunk_size": 800,
-    "overlap": 120,
-    "top_k": 3,
-    "max_tokens": 150,
-    "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
-    "generation_model": "google/flan-t5-base"
+    "chunk_size": 600,  # Aumentado para chunks maiores
+    "overlap": 120,     # Sobreposição otimizada (20% do chunk_size)
+    "top_k": 12,        # Aumentado para recuperar mais contexto relevante
+    "max_tokens": 10000,  # Significativamente aumentado para respostas mais completas
+    "embedding_model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",  # Melhor para português
+    "generation_model": "google/flan-t5-base",  # Volta para FLAN-T5 que é mais estável
+    "fallback_model": "google/flan-t5-small"  # Fallback menor
 }
 
 # ================================
@@ -57,11 +58,262 @@ class Metadata:
     start_char: int
     end_char: int
 
-@dataclass
+@dataclass  
 class Retrieved:
     text: str
     meta: Metadata
     score: float
+
+# ================================
+# Sistema Híbrido RAG + FLAN-T5
+# ================================
+
+class FlanT5Fallback:
+    """Sistema de fallback usando FLAN-T5 quando RAG não tem resposta adequada"""
+    
+    def __init__(self):
+        self.model = None
+        self.tokenizer = None
+        self.is_loaded = False
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        
+    def load_model(self):
+        """Carrega o modelo FLAN-T5 para fallback"""
+        if self.is_loaded:
+            return True
+            
+        try:
+            print(f"{Fore.BLUE}🤖 Carregando modelo FLAN-T5 para respostas de fallback...")
+            
+            # Usar modelo do config
+            model_name = DEFAULT_CONFIG["generation_model"]
+            
+            self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+            self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
+            
+            # Mover para GPU se disponível
+            if torch.cuda.is_available():
+                self.model = self.model.to(self.device)
+                print(f"  🚀 Modelo carregado na GPU")
+            else:
+                print(f"  💻 Modelo carregado na CPU")
+                
+            self.is_loaded = True
+            print(f"{Fore.GREEN}✅ FLAN-T5 pronto para fallback!")
+            return True
+            
+        except Exception as e:
+            print(f"{Fore.RED}❌ Erro ao carregar FLAN-T5: {e}")
+            return False
+    
+    def generate_fallback_response(self, question: str, context_type: str = "") -> str:
+        """Gera resposta usando FLAN-T5 quando RAG não tem resposta"""
+        if not self.is_loaded:
+            if not self.load_model():
+                return "Desculpe, não consegui processar sua pergunta no momento. Tente novamente mais tarde."
+        
+        try:
+            # Criar prompt contextualizado para ICTA
+            icta_context = """A ICTA Technology é uma consultoria especializada em:
+• Business Intelligence (BI) e Analytics
+• Automação de processos e RPA
+• Inteligência Artificial e Machine Learning
+• Integrações com sistemas ERP (especialmente TOTVS)
+• Transformação digital e otimização de dados
+
+Principais serviços:
+- Dashboards e relatórios executivos
+- Automação de workflows
+- Chatbots e assistentes virtuais
+- Migração e integração de dados
+- Consultoria em arquitetura de dados"""
+
+            prompt = f"""Você é um assistente especializado da ICTA Technology. Responda de forma útil e profissional.
+
+CONTEXTO DA EMPRESA:
+{icta_context}
+
+PERGUNTA DO CLIENTE: {question}
+
+INSTRUÇÕES:
+- Seja profissional e útil
+- Use informações gerais sobre tecnologia quando apropriado
+- Se não souber algo específico da ICTA, seja honesto
+- Sugira entrar em contato para informações detalhadas
+- Mantenha foco em BI, automação, IA e integrações
+
+RESPOSTA:"""
+
+            # Tokenizar e gerar resposta
+            inputs = self.tokenizer(
+                prompt, 
+                return_tensors="pt", 
+                max_length=600, 
+                truncation=True
+            )
+            
+            # Mover inputs para dispositivo correto
+            inputs = {k: v.to(self.device) for k, v in inputs.items()}
+            
+            with torch.no_grad():
+                outputs = self.model.generate(
+                    **inputs,
+                    max_new_tokens=800,
+                    temperature=0.7,
+                    do_sample=True,
+                    top_p=0.9,
+                    pad_token_id=self.tokenizer.eos_token_id,
+                    no_repeat_ngram_size=3
+                )
+            
+            response = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+            
+            # Limpar resposta (remover prompt repetido)
+            response = response.replace(prompt, "").strip()
+            
+            # Adicionar disclaimer sobre ser resposta geral
+            disclaimer = "\n\n💡 *Resposta gerada por IA geral. Para informações específicas da ICTA, entre em contato conosco.*"
+            
+            return response + disclaimer
+            
+        except Exception as e:
+            print(f"{Fore.RED}❌ Erro ao gerar resposta com FLAN-T5: {e}")
+            return f"Desculpe, tive um problema técnico. Para melhor atendimento, entre em contato diretamente com nossa equipe da ICTA Technology."
+
+# Instância global do sistema de fallback
+flan_fallback = FlanT5Fallback()
+
+class PortugueseLLM:
+    """FLAN-T5 otimizado para português com prompts melhorados"""
+    
+    def __init__(self):
+        self.model = None
+        self.tokenizer = None
+        self.is_loaded = False
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+    
+    def load_model(self) -> bool:
+        """Carrega o modelo FLAN-T5 otimizado para português"""
+        try:
+            model_name = DEFAULT_CONFIG["generation_model"]
+            print(f"🤖 Carregando FLAN-T5 otimizado: {model_name}")
+            
+            # Usar FLAN-T5 que é mais estável
+            self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+            self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
+            
+            # Configurar padding token se não existir
+            if self.tokenizer.pad_token is None:
+                self.tokenizer.pad_token = self.tokenizer.eos_token
+            
+            # Mover para dispositivo apropriado
+            if self.device == "cuda" and torch.cuda.is_available():
+                try:
+                    self.model = self.model.to(self.device)
+                    print(f"  🚀 Modelo carregado na GPU")
+                except:
+                    self.device = "cpu"
+                    print(f"  💻 Modelo carregado na CPU (GPU não disponível)")
+            else:
+                print(f"  💻 Modelo carregado na CPU")
+            
+            self.is_loaded = True
+            print("✅ FLAN-T5 otimizado carregado com sucesso!")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Erro ao carregar FLAN-T5: {e}")
+            self.is_loaded = False
+            return False
+    
+    def generate_enhanced_response(self, question: str, rag_context: str = "") -> str:
+        """Gera resposta usando FLAN-T5 com prompts otimizados para português"""
+        try:
+            if not self.is_loaded:
+                success = self.load_model()
+                if not success:
+                    return "Erro ao carregar modelo. Tente novamente."
+            
+            # Criar prompt otimizado para FLAN-T5 em português
+            if rag_context:
+                # Limitar e limpar contexto RAG
+                context_lines = rag_context.split('\n')[:2]  # Usar apenas 2 linhas
+                clean_context = ' '.join(context_lines).strip()
+                clean_context = clean_context.replace('[TAGS:', '').replace(']', '')
+                
+                prompt = f"""Baseado nas informações da ICTA Technology, responda de forma clara e profissional em português.
+
+Informações: {clean_context}
+
+Pergunta: {question}
+
+Resposta clara em português:"""
+            else:
+                # Prompt para perguntas gerais
+                prompt = f"""Responda como assistente profissional da ICTA Technology em português.
+
+A ICTA Technology é especializada em Business Intelligence, automação de processos e inteligência artificial para empresas.
+
+Pergunta: {question}
+
+Resposta profissional:"""
+            
+            # Tokenizar com limite adequado
+            inputs = self.tokenizer(
+                prompt,
+                return_tensors="pt",
+                max_length=400,
+                truncation=True,
+                padding=True
+            )
+            
+            inputs = {k: v.to(self.device) for k, v in inputs.items()}
+            
+            # Gerar resposta com parâmetros otimizados para FLAN-T5
+            with torch.no_grad():
+                outputs = self.model.generate(
+                    **inputs,
+                    max_new_tokens=100,  # Quantidade adequada para FLAN-T5
+                    temperature=0.3,     # Conservador para informações específicas
+                    do_sample=True,
+                    top_p=0.8,
+                    repetition_penalty=1.1,
+                    pad_token_id=self.tokenizer.eos_token_id,
+                    no_repeat_ngram_size=2
+                )
+            
+            # Decodificar resposta
+            response = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+            
+            # Extrair apenas a resposta nova
+            if "Resposta clara em português:" in response:
+                response = response.split("Resposta clara em português:")[-1].strip()
+            elif "Resposta profissional:" in response:
+                response = response.split("Resposta profissional:")[-1].strip()
+            else:
+                # Remover o prompt original
+                response = response.replace(prompt, "").strip()
+            
+            # Limpeza e validação final
+            if len(response) < 15 or len(response) > 400:
+                if rag_context:
+                    # Usar resposta direta do RAG se disponível
+                    return clean_context if clean_context else "Entre em contato para mais informações sobre os serviços da ICTA Technology."
+                else:
+                    return "A ICTA Technology oferece soluções em Business Intelligence, automação e inteligência artificial. Entre em contato para mais informações."
+            
+            return response
+            
+        except Exception as e:
+            print(f"Erro no modelo FLAN-T5: {e}")
+            if rag_context:
+                # Fallback para contexto RAG direto
+                clean_context = rag_context.replace('[TAGS:', '').replace(']', '').strip()
+                return clean_context.split('\n')[0] if clean_context else "Entre em contato para mais informações."
+            return "Para informações específicas, entre em contato com a ICTA Technology."
+
+# Instância global do modelo português
+portuguese_llm = PortugueseLLM()
 
 # ================================
 # Utilitários de Interface
@@ -116,35 +368,45 @@ def wait_for_enter():
 # Utilitários de Processamento
 # ================================
 
-def read_text_files(folder: str) -> dict[str, str]:
-    """Lê todos os .txt do diretório"""
-    print(f"{Fore.BLUE}📂 Lendo arquivos .txt de: {folder}")
+def read_jsonl_files(folder: str) -> dict[str, str]:
+    """Lê todos os .jsonl do diretório com processamento inteligente"""
+    print(f"{Fore.BLUE}📂 Lendo arquivos .jsonl de: {folder}")
     
     if not os.path.exists(folder):
         print(f"{Fore.RED}❌ Diretório não encontrado: {folder}")
         return {}
     
     data: dict[str, str] = {}
-    txt_files = []
+    jsonl_files = []
     
     for root, _, files in os.walk(folder):
         for f in files:
-            if f.lower().endswith(".txt"):
-                txt_files.append(os.path.join(root, f))
+            if f.lower().endswith(".jsonl"):
+                jsonl_files.append(os.path.join(root, f))
     
-    if not txt_files:
-        print(f"{Fore.YELLOW}⚠️ Nenhum arquivo .txt encontrado em {folder}")
+    if not jsonl_files:
+        print(f"{Fore.YELLOW}⚠️ Nenhum arquivo .jsonl encontrado em {folder}")
         return {}
     
-    print(f"{Fore.GREEN}📄 Encontrados {len(txt_files)} arquivos .txt")
+    print(f"{Fore.GREEN}📄 Encontrados {len(jsonl_files)} arquivos .jsonl")
     
-    for fp in tqdm(txt_files, desc="Lendo arquivos"):
+    for fp in tqdm(jsonl_files, desc="Lendo arquivos"):
         try:
+            content_parts = []
             with open(fp, "r", encoding="utf-8") as fh:
-                content = fh.read().strip()
-            if content:
+                for line in fh:
+                    line = line.strip()
+                    if line:
+                        entry = json.loads(line)
+                        # Processa e enriquece cada entrada
+                        processed_entry = process_jsonl_entry(entry, os.path.basename(fp))
+                        if processed_entry:
+                            content_parts.append(processed_entry)
+                        
+            if content_parts:
+                content = "\n\n".join(content_parts)
                 data[fp] = content
-                print(f"{Fore.GREEN}  ✅ {os.path.basename(fp)} ({len(content)} caracteres)")
+                print(f"{Fore.GREEN}  ✅ {os.path.basename(fp)} ({len(content_parts)} entradas, {len(content)} caracteres)")
             else:
                 print(f"{Fore.YELLOW}  ⚠️ {os.path.basename(fp)} está vazio")
         except Exception as e:
@@ -152,22 +414,167 @@ def read_text_files(folder: str) -> dict[str, str]:
     
     return data
 
-def chunk_text(text: str, chunk_size: int = 800, overlap: int = 120) -> list[str]:
-    """Quebra texto em chunks com sobreposição"""
+def process_jsonl_entry(entry: dict, filename: str) -> str:
+    """Processa uma entrada JSONL para enriquecer o contexto"""
+    
+    # Determina o contexto baseado no nome do arquivo
+    context_prefix = ""
+    if "cortesia" in filename.lower() or "saudacao" in filename.lower():
+        context_prefix = "[SAUDAÇÃO/CORTESIA] "
+    elif "empresa" in filename.lower() or "contato" in filename.lower():
+        context_prefix = "[EMPRESA/CONTATO] "
+    elif "faq" in filename.lower():
+        context_prefix = "[FAQ GERAL] "
+    elif "servicos" in filename.lower() or "bi" in filename.lower() or "automacao" in filename.lower():
+        context_prefix = "[SERVIÇOS/BI/AUTOMAÇÃO] "
+    elif "integracao" in filename.lower() or "totvs" in filename.lower():
+        context_prefix = "[INTEGRAÇÃO/TOTVS] "
+    elif "politica" in filename.lower():
+        context_prefix = "[POLÍTICA/DIRETRIZES] "
+    
+    # Processa diferentes estruturas de entrada
+    processed_text = ""
+    
+    if 'question' in entry and 'answer' in entry:
+        # Formato completo com pergunta e resposta
+        processed_text = f"PERGUNTA: {entry['question']}\nRESPOSTA: {entry['answer']}"
+    elif 'answer' in entry:
+        # Apenas resposta - tenta inferir o contexto
+        answer = entry['answer'].strip()
+        
+        # Adiciona contexto semântico baseado no conteúdo
+        if any(word in answer.lower() for word in ['bom dia', 'boa tarde', 'boa noite', 'olá', 'oi']):
+            context_prefix = "[SAUDAÇÃO] "
+        elif any(word in answer.lower() for word in ['preço', 'custo', 'investimento', 'valor']):
+            context_prefix = "[PREÇOS/COMERCIAL] "
+        elif any(word in answer.lower() for word in ['totvs', 'erp', 'integração']):
+            context_prefix = "[INTEGRAÇÃO/ERP] "
+        elif any(word in answer.lower() for word in ['bi', 'business intelligence', 'dashboard', 'relatório']):
+            context_prefix = "[BUSINESS INTELLIGENCE] "
+        elif any(word in answer.lower() for word in ['automação', 'rpa', 'processo']):
+            context_prefix = "[AUTOMAÇÃO] "
+        elif any(word in answer.lower() for word in ['ia', 'inteligência artificial', 'chatbot', 'ai']):
+            context_prefix = "[INTELIGÊNCIA ARTIFICIAL] "
+        elif any(word in answer.lower() for word in ['contato', 'telefone', 'email', 'endereço']):
+            context_prefix = "[CONTATO/LOCALIZAÇÃO] "
+        
+        processed_text = f"CONTEÚDO: {answer}"
+    elif 'text' in entry:
+        processed_text = f"TEXTO: {entry['text']}"
+    elif isinstance(entry, str):
+        processed_text = f"INFORMAÇÃO: {entry}"
+    else:
+        return ""
+    
+    # Adiciona metadados para melhor recuperação
+    enhanced_text = f"{context_prefix}{processed_text}"
+    
+    # Adiciona palavras-chave relevantes para ICTA
+    keywords = []
+    text_lower = processed_text.lower()
+    
+    # Palavras-chave técnicas
+    if any(word in text_lower for word in ['dashboard', 'relatório', 'análise', 'dados']):
+        keywords.append("business_intelligence")
+    if any(word in text_lower for word in ['automação', 'automatizar', 'processo']):
+        keywords.append("automacao_processos")
+    if any(word in text_lower for word in ['totvs', 'erp', 'protheus']):
+        keywords.append("integracao_erp")
+    if any(word in text_lower for word in ['chatbot', 'ia', 'inteligência']):
+        keywords.append("inteligencia_artificial")
+    if any(word in text_lower for word in ['python', 'sql', 'api']):
+        keywords.append("tecnologia")
+    
+    if keywords:
+        enhanced_text += f" [TAGS: {', '.join(keywords)}]"
+    
+    return enhanced_text
+
+def chunk_text(text: str, chunk_size: int = 400, overlap: int = 80) -> list[str]:
+    """Quebra texto em chunks inteligentes com sobreposição otimizada"""
+    import re
+    
     chunks = []
-    start = 0
-    n = len(text)
     
-    while start < n:
-        end = min(start + chunk_size, n)
-        chunks.append(text[start:end])
-        if end == n:
-            break
-        start = end - overlap
-        if start < 0:
-            start = 0
+    # Primeiro, tenta quebrar por sentenças completas
+    sentences = re.split(r'(?<=[.!?])\s+', text)
+    if not sentences:
+        sentences = [text]
     
-    return chunks
+    current_chunk = ""
+    
+    for sentence in sentences:
+        # Se adicionar a próxima sentença não exceder o limite
+        if len(current_chunk + " " + sentence) <= chunk_size:
+            if current_chunk:
+                current_chunk += " " + sentence
+            else:
+                current_chunk = sentence
+        else:
+            # Se o chunk atual não está vazio, salva
+            if current_chunk.strip():
+                chunks.append(current_chunk.strip())
+            
+            # Se a sentença é muito longa, quebra por caracteres
+            if len(sentence) > chunk_size:
+                # Quebra a sentença longa mantendo palavras inteiras
+                words = sentence.split()
+                temp_chunk = ""
+                for word in words:
+                    if len(temp_chunk + " " + word) <= chunk_size:
+                        if temp_chunk:
+                            temp_chunk += " " + word
+                        else:
+                            temp_chunk = word
+                    else:
+                        if temp_chunk.strip():
+                            chunks.append(temp_chunk.strip())
+                        temp_chunk = word
+                
+                current_chunk = temp_chunk
+            else:
+                current_chunk = sentence
+    
+    # Adiciona o último chunk se não estiver vazio
+    if current_chunk.strip():
+        chunks.append(current_chunk.strip())
+    
+    # Se ainda não temos chunks, faz quebra simples por caracteres
+    if not chunks and text.strip():
+        start = 0
+        n = len(text)
+        while start < n:
+            end = min(start + chunk_size, n)
+            chunk = text[start:end].strip()
+            if chunk:
+                chunks.append(chunk)
+            if end == n:
+                break
+            start = end - overlap
+            if start < 0:
+                start = 0
+    
+    # Adiciona sobreposição inteligente entre chunks adjacentes
+    enhanced_chunks = []
+    for i, chunk in enumerate(chunks):
+        if i == 0:
+            enhanced_chunks.append(chunk)
+        else:
+            # Adiciona sobreposição com o chunk anterior
+            prev_chunk = chunks[i-1]
+            overlap_text = prev_chunk[-overlap:] if len(prev_chunk) > overlap else prev_chunk
+            
+            # Remove pontuação quebrada no início da sobreposição
+            overlap_text = re.sub(r'^[^\w\s]*', '', overlap_text)
+            
+            if overlap_text.strip() and not chunk.startswith(overlap_text.strip()):
+                enhanced_chunk = overlap_text.strip() + " " + chunk
+            else:
+                enhanced_chunk = chunk
+            
+            enhanced_chunks.append(enhanced_chunk)
+    
+    return enhanced_chunks
 
 # ================================
 # Menu Principal
@@ -179,7 +586,7 @@ def show_main_menu():
     print(f"{Fore.CYAN}{'='*50}")
     
     print_menu_option(1, "🏗️ Construir Base de Conhecimento", 
-                     "Processa seus arquivos .txt e cria o índice de busca")
+                     "Processa seus arquivos .jsonl e cria o índice de busca")
     
     print_menu_option(2, "💬 Chat Interativo Inteligente", 
                      "Conversa inteligente com IA que guia quando necessário")
@@ -224,15 +631,15 @@ def check_system_status():
     # Verificar arquivos de dados
     print(f"\n{Fore.CYAN}📄 Arquivos de dados:")
     if os.path.exists(config["docs_path"]):
-        txt_files = [f for f in os.listdir(config["docs_path"]) if f.endswith('.txt')]
-        if txt_files:
-            print(f"  ✅ {len(txt_files)} arquivos .txt encontrados:")
-            for f in txt_files[:5]:  # Mostrar apenas os primeiros 5
+        jsonl_files = [f for f in os.listdir(config["docs_path"]) if f.endswith('.jsonl')]
+        if jsonl_files:
+            print(f"  ✅ {len(jsonl_files)} arquivos .jsonl encontrados:")
+            for f in jsonl_files[:5]:  # Mostrar apenas os primeiros 5
                 print(f"    📝 {f}")
-            if len(txt_files) > 5:
-                print(f"    ... e mais {len(txt_files) - 5} arquivos")
+            if len(jsonl_files) > 5:
+                print(f"    ... e mais {len(jsonl_files) - 5} arquivos")
         else:
-            print(f"  ⚠️ Nenhum arquivo .txt encontrado em {config['docs_path']}")
+            print(f"  ⚠️ Nenhum arquivo .jsonl encontrado em {config['docs_path']}")
     else:
         print(f"  ❌ Diretório {config['docs_path']} não existe")
     
@@ -277,7 +684,7 @@ def check_system_status():
     # Recomendações
     print(f"\n{Fore.YELLOW}💡 Recomendações:")
     if not os.path.exists(config["docs_path"]):
-        print("  • Crie o diretório 'data' e adicione arquivos .txt")
+        print("  • Crie o diretório 'data' e adicione arquivos .jsonl")
     elif not os.path.exists(config["index_path"]):
         print("  • Execute 'Construir Base de Conhecimento' (opção 1)")
     else:
@@ -356,17 +763,17 @@ def build_knowledge_base():
         if confirm_action("Deseja criar o diretório 'data'?"):
             os.makedirs(config["docs_path"], exist_ok=True)
             print(f"{Fore.GREEN}✅ Diretório 'data' criado!")
-            print(f"{Fore.YELLOW}💡 Adicione seus arquivos .txt em '{config['docs_path']}' e tente novamente")
+            print(f"{Fore.YELLOW}💡 Adicione seus arquivos .jsonl em '{config['docs_path']}' e tente novamente")
             wait_for_enter()
             return
         else:
             return
     
     # Ler arquivos
-    documents = read_text_files(config["docs_path"])
+    documents = read_jsonl_files(config["docs_path"])
     if not documents:
-        print(f"{Fore.RED}❌ Nenhum arquivo .txt encontrado ou todos estão vazios!")
-        print(f"{Fore.YELLOW}💡 Adicione arquivos .txt em '{config['docs_path']}' e tente novamente")
+        print(f"{Fore.RED}❌ Nenhum arquivo .jsonl encontrado ou todos estão vazios!")
+        print(f"{Fore.YELLOW}💡 Adicione arquivos .jsonl em '{config['docs_path']}' e tente novamente")
         wait_for_enter()
         return
     
@@ -384,29 +791,55 @@ def build_knowledge_base():
         return
     
     try:
-        # Criar chunks
-        print(f"\n{Fore.BLUE}📝 Dividindo textos em chunks...")
+        # Criar chunks com estratégia otimizada
+        print(f"\n{Fore.BLUE}📝 Dividindo textos em chunks inteligentes...")
         chunks: list[str] = []
         metadatas: list[Metadata] = []
         
+        total_content_chars = sum(len(content) for content in documents.values())
+        print(f"  � Processando {total_content_chars:,} caracteres total")
+        
         for filepath, content in documents.items():
-            print(f"  📝 Processando {os.path.basename(filepath)}...")
+            filename = os.path.basename(filepath)
+            print(f"  📝 Processando {filename}...")
+            
+            # Aplica chunking inteligente
             file_chunks = chunk_text(content, config["chunk_size"], config["overlap"])
-            print(f"    📊 {len(content)} chars → {len(file_chunks)} chunks")
+            
+            # Filtra chunks muito pequenos (menos úteis para busca)
+            filtered_chunks = [chunk for chunk in file_chunks if len(chunk.strip()) > 50]
+            
+            print(f"    📊 {len(content):,} chars → {len(file_chunks)} chunks → {len(filtered_chunks)} úteis")
             
             start_char = 0
-            for i, chunk in enumerate(file_chunks):
-                chunks.append(chunk)
-                end_char = start_char + len(chunk)
-                metadatas.append(Metadata(
-                    source=filepath,
-                    chunk_id=i,
-                    start_char=start_char,
-                    end_char=end_char
-                ))
-                start_char = end_char - config["overlap"]
+            for i, chunk in enumerate(filtered_chunks):
+                # Limpa e normaliza o chunk
+                clean_chunk = chunk.strip()
+                if clean_chunk:
+                    chunks.append(clean_chunk)
+                    end_char = start_char + len(chunk)
+                    metadatas.append(Metadata(
+                        source=filepath,
+                        chunk_id=i,
+                        start_char=start_char,
+                        end_char=end_char
+                    ))
+                    start_char = end_char - config["overlap"]
         
-        print(f"{Fore.GREEN}✅ Criados {len(chunks)} chunks")
+        if not chunks:
+            print(f"{Fore.RED}❌ Nenhum chunk válido foi gerado!")
+            return
+        
+        print(f"{Fore.GREEN}✅ Criados {len(chunks)} chunks úteis")
+        print(f"  📏 Tamanho médio: {sum(len(c) for c in chunks) // len(chunks)} caracteres")
+        print(f"  📊 Distribuição de tamanhos:")
+        
+        # Mostra distribuição de tamanhos para análise
+        sizes = [len(c) for c in chunks]
+        sizes.sort()
+        print(f"    Mínimo: {min(sizes)} chars")
+        print(f"    Mediana: {sizes[len(sizes)//2]} chars")  
+        print(f"    Máximo: {max(sizes)} chars")
         
         # Criar embeddings
         print(f"\n{Fore.BLUE}🧠 Carregando modelo de embeddings...")
@@ -534,32 +967,58 @@ def search_index(query: str, index_path: str, meta_path: str, top_k: int = 3) ->
     return results
 
 def generate_answer(contexts: list[Retrieved], question: str) -> str:
-    """Gera resposta usando FLAN-T5"""
+    """Gera resposta usando RAG + FLAN-T5 híbrido"""
     config = DEFAULT_CONFIG
     
-    # Montar prompt
+    # Verificar qualidade dos contextos recuperados
+    if not contexts:
+        print(f"{Fore.YELLOW}🔍 Nenhum contexto encontrado no RAG, usando FLAN-T5...")
+        return flan_fallback.generate_fallback_response(question)
+    
+    # Calcular score médio para decidir usar RAG ou FLAN-T5
+    avg_score = sum(ctx.score for ctx in contexts) / len(contexts)
+    min_score = min(ctx.score for ctx in contexts)
+    
+    # Limiar para decidir entre RAG e FLAN-T5
+    RAG_THRESHOLD = 0.4
+    MIN_SCORE_THRESHOLD = 0.3
+    
+    if avg_score < RAG_THRESHOLD or min_score < MIN_SCORE_THRESHOLD:
+        print(f"{Fore.YELLOW}🤔 Contexto RAG com baixa relevância (score: {avg_score:.2f}), usando FLAN-T5...")
+        return flan_fallback.generate_fallback_response(question)
+    
+    # Usar RAG com contexto de alta qualidade
+    print(f"{Fore.GREEN}✅ Usando RAG com contexto relevante (score: {avg_score:.2f})")
+    
+    # Montar prompt para RAG
     context_text = "\n\n".join([
-        f"[DOCUMENTO {i+1}]\n{ctx.text}" 
+        f"[DOCUMENTO {i+1} - Relevância: {ctx.score:.2f}]\n{ctx.text}" 
         for i, ctx in enumerate(contexts)
     ])
     
-    prompt = f"""Você é um assistente da ICTA Technology. Responda APENAS com base no contexto fornecido. Se a resposta não estiver no contexto, diga que não sabe e sugira contato com um humano.
+    prompt = f"""Você é um assistente especializado da ICTA Technology. Responda APENAS com base no contexto fornecido abaixo.
 
-CONTEXTO:
+IMPORTANTE: 
+- Use SOMENTE as informações do contexto
+- Se a resposta não estiver clara no contexto, diga que precisa de mais informações
+- Seja específico e direto
+- Mantenha o foco em BI, automação, IA e integrações
+
+CONTEXTO DA ICTA:
 {context_text}
 
-PERGUNTA: {question}
+PERGUNTA DO CLIENTE: {question}
 
-RESPOSTA:"""
+RESPOSTA BASEADA NO CONTEXTO:"""
     
-    # Carregar modelo
+    # Carregar modelo se necessário
     try:
         device = "cuda" if torch.cuda.is_available() else "cpu"
         tokenizer = AutoTokenizer.from_pretrained(config["generation_model"])
         model = AutoModelForSeq2SeqLM.from_pretrained(config["generation_model"]).to(device)
         
         # Gerar resposta
-        inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=512).to(device)
+        inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=10000).to(device)
         
         with torch.no_grad():
             outputs = model.generate(
@@ -568,14 +1027,55 @@ RESPOSTA:"""
                 do_sample=True,
                 temperature=0.3,
                 top_p=0.9,
-                pad_token_id=tokenizer.eos_token_id
+                pad_token_id=tokenizer.eos_token_id,
+                no_repeat_ngram_size=2
             )
         
         response = tokenizer.decode(outputs[0], skip_special_tokens=True)
-        return response.strip()
+        
+        # Limpar resposta
+        response = response.replace(prompt, "").strip()
+        
+        # Adicionar indicador de que foi resposta do RAG
+        response += f"\n\n📊 *Resposta baseada na base de conhecimento da ICTA (relevância: {avg_score:.1%})*"
+        
+        return response
         
     except Exception as e:
-        return f"Erro ao gerar resposta: {str(e)}"
+        print(f"{Fore.RED}❌ Erro no RAG, usando FLAN-T5 como backup: {e}")
+        return flan_fallback.generate_fallback_response(question)
+
+def hybrid_rag_query(query: str, top_k: int = 8) -> tuple[str, str]:
+    """Consulta híbrida que combina RAG e FLAN-T5"""
+    
+    # 1. Tentar buscar no RAG primeiro
+    try:
+        search_results = search_index(query, "./index/faiss.index", "./index/meta.jsonl", top_k=top_k)
+        
+        if search_results:
+            # Analisar qualidade dos resultados
+            scores = [result.score for result in search_results]
+            avg_score = sum(scores) / len(scores)
+            
+            print(f"{Fore.CYAN}🔍 RAG encontrou {len(search_results)} resultados (score médio: {avg_score:.2f})")
+            
+            # Gerar resposta (decide internamente entre RAG e FLAN-T5)
+            answer = generate_answer(search_results, query)
+            
+            if avg_score >= 0.4:
+                return answer, "rag"
+            else:
+                return answer, "flan_t5_low_rag"
+        else:
+            print(f"{Fore.YELLOW}🤔 RAG não encontrou resultados, usando FLAN-T5...")
+            answer = flan_fallback.generate_fallback_response(query)
+            return answer, "flan_t5_no_rag"
+            
+    except Exception as e:
+        print(f"{Fore.RED}❌ Erro no RAG: {e}")
+        print(f"{Fore.YELLOW}🔄 Usando FLAN-T5 como fallback...")
+        answer = flan_fallback.generate_fallback_response(query)
+        return answer, "flan_t5_error"
 
 def print_colored(text: str, color: str = "white"):
     """Imprime texto com cor específica"""
@@ -665,12 +1165,12 @@ Pergunta: {question}
 
 Resposta conversacional:"""
         
-        inputs = tokenizer(guidance_prompt, return_tensors="pt", max_length=400, truncation=True).to(device)
+        inputs = tokenizer(guidance_prompt, return_tensors="pt", max_length=10000, truncation=True).to(device)
         
         with torch.no_grad():
             outputs = model.generate(
                 **inputs,
-                max_length=200,
+                max_length=400,
                 temperature=0.5,
                 do_sample=True,
                 repetition_penalty=1.1,
@@ -733,20 +1233,18 @@ def suggest_related_topics(intent: str) -> list[str]:
     ])
 
 def interactive_chat():
-    """Chat interativo melhorado com guias inteligentes"""
-    print_colored("\n💬 CHAT INTERATIVO ICTA", "cyan")
+    """Chat interativo simples e limpo"""
+    print_colored("\n💬 CHAT ICTA TECHNOLOGY", "cyan")
     print_colored("=" * 50, "cyan")
     
-    # Verificar se há base de conhecimento
-    if not os.path.exists("./index/faiss.index"):
-        print_colored("❌ Base de conhecimento não encontrada!", "red")
-        print_colored("   Execute a opção 1 primeiro para construir a base.", "yellow")
-        wait_for_enter()
-        return
+    # Verificar se há base de conhecimento (silenciosamente)
+    rag_available = os.path.exists("./index/faiss.index")
     
-    print_colored("🤖 Olá! Sou o assistente da ICTA Technology.", "green")
-    print_colored("💡 Posso ajudar com dúvidas sobre BI, automação e IA.", "blue")
-    print_colored("🔍 Se não souber responder, vou te guiar para encontrar o que precisa!", "blue")
+    if not rag_available:
+        print_colored("⚠️ Para melhor experiência, construa a base de conhecimento primeiro (opção 1)", "yellow")
+    
+    print_colored("\n🤖 Olá! Sou o assistente da ICTA Technology.", "green")
+    print_colored("💡 Posso ajudar com dúvidas sobre BI, automação, IA e integrações.", "blue")
     print_colored("\n📝 Digite sua pergunta (ou 'sair' para encerrar):", "white")
     
     conversation_history = []
@@ -756,7 +1254,7 @@ def interactive_chat():
         user_input = input(f"{Fore.YELLOW}👤 Você: {Style.RESET_ALL}").strip()
         
         if user_input.lower() in ['sair', 'exit', 'quit', 'bye']:
-            print_colored("👋 Obrigado por usar o assistente ICTA! Até logo!", "green")
+            print_colored("\n👋 Obrigado por usar o assistente ICTA! Até logo!", "green")
             break
         
         if not user_input:
@@ -764,41 +1262,172 @@ def interactive_chat():
             continue
         
         # Salvar pergunta do usuário
-        conversation_history.append({"role": "user", "content": user_input})
+        conversation_history.append({"role": "user", "content": user_input, "timestamp": datetime.now().isoformat()})
         
-        # 1. Classificar intenção da pergunta
-        intent_info = classify_query_intent(user_input)
-        
-        # 2. Buscar no índice
+        # Processar pergunta silenciosamente (sem mostrar detalhes técnicos)
         try:
-            search_results = search_index(user_input, "./index/faiss.index", "./index/meta.jsonl", top_k=3)
-        except Exception as e:
-            print_colored(f"❌ Erro na busca: {e}", "red")
-            search_results = []
+            if rag_available:
+                # Tentar RAG primeiro
+                search_results = search_index(user_input, "./index/faiss.index", "./index/meta.jsonl", top_k=8)
+                
+                if search_results:
+                    # Avaliar qualidade silenciosamente
+                    scores = [result.score for result in search_results]
+                    avg_score = sum(scores) / len(scores)
+                    
+                    # Usar RAG + FLAN-T5 se qualidade é boa
+                    if avg_score >= 0.4:
+                        # RAG context + FLAN-T5 processing
+                        answer = generate_enhanced_answer_with_context(search_results, user_input)
+                    else:
+                        # Apenas FLAN-T5 sem contexto RAG
+                        answer = generate_enhanced_answer_without_context(user_input)
+                else:
+                    # Sem resultados RAG, usar apenas FLAN-T5
+                    answer = generate_enhanced_answer_without_context(user_input)
+            else:
+                # Apenas FLAN-T5 sem RAG
+                answer = generate_enhanced_answer_without_context(user_input)
+                
+        except Exception:
+            # Em caso de erro, usar resposta padrão
+            answer = "Para informações específicas sobre nossos serviços, entre em contato com nossa equipe da ICTA Technology."
         
-        # 3. Gerar resposta conversacional
-        has_good_results = search_results and any(result.score > 0.4 for result in search_results)
+        # Exibir apenas a resposta, sem informações técnicas
+        print_colored(f"\n🤖 ICTA Assistant:", "cyan")
+        print_colored(answer, "white")
         
-        if has_good_results:
-            # Resposta com contexto
-            answer = generate_guided_response(search_results, user_input, intent_info)
-        else:
-            # Resposta sem contexto - modo conversacional
-            answer = generate_guided_response([], user_input, intent_info)
+        # Salvar resposta
+        conversation_history.append({
+            "role": "assistant", 
+            "content": answer,
+            "timestamp": datetime.now().isoformat()
+        })
+    
+    # Salvar histórico silenciosamente
+    save_conversation_history(conversation_history)
+    wait_for_enter()
+
+def generate_enhanced_answer_with_context(contexts: list[Retrieved], question: str) -> str:
+    """Usa modelo português para processar RAG + pergunta"""
+    try:
+        if not contexts:
+            return generate_enhanced_answer_without_context(question)
+        
+        # Extrair contexto dos melhores resultados
+        context_parts = []
+        for ctx in contexts[:5]:  # Usar os 5 melhores
+            context_parts.append(ctx.text.strip())
+        
+        rag_context = "\n\n".join(context_parts)
+        
+        # Usar modelo português para resposta melhor
+        response = portuguese_llm.generate_enhanced_response(question, rag_context)
+        
+        return response
+        
+    except Exception:
+        # Fallback para RAG direto se houver erro
+        return contexts[0].text if contexts else "Entre em contato para mais informações sobre os serviços da ICTA Technology."
+
+def generate_enhanced_answer_without_context(question: str) -> str:
+    """Usa modelo português para perguntas gerais"""
+    try:
+        # Usar modelo português diretamente
+        response = portuguese_llm.generate_enhanced_response(question)
+        
+        # Se a resposta for muito genérica, usar FLAN-T5 como fallback
+        if len(response) < 20 or "Entre em contato" in response:
+            # Criar respostas personalizadas para cumprimentos
+            if any(word in question.lower() for word in ['olá', 'oi', 'bom dia', 'boa tarde', 'boa noite']):
+                return "Olá! Sou o assistente da ICTA Technology. Posso ajudar com informações sobre Business Intelligence, automação de processos e inteligência artificial. Como posso ajudá-lo?"
             
-            # Adicionar sugestões de tópicos
-            suggestions = suggest_related_topics(intent_info['intent'])
-            if suggestions:
-                answer += f"\n\n💡 Você também pode me perguntar sobre:\n"
-                for i, suggestion in enumerate(suggestions, 1):
-                    answer += f"   • {suggestion}\n"
+            if 'icta' in question.lower():
+                return "A ICTA Technology é uma consultoria especializada em Business Intelligence, automação de processos, inteligência artificial e integrações com sistemas ERP. Oferecemos soluções personalizadas para empresas."
+        
+        return response
+        
+    except Exception:
+        return "Posso ajudar com informações sobre os serviços da ICTA Technology. O que gostaria de saber?"
+    
+    conversation_history = []
+    response_stats = {"rag": 0, "flan_t5_low_rag": 0, "flan_t5_no_rag": 0, "flan_t5_error": 0}
+    
+    while True:
+        print_colored("\n" + "─" * 50, "gray")
+        user_input = input(f"{Fore.YELLOW}👤 Você: {Style.RESET_ALL}").strip()
+        
+        if user_input.lower() in ['sair', 'exit', 'quit', 'bye']:
+            print_colored("\n� ESTATÍSTICAS DA CONVERSA:", "cyan")
+            print_colored(f"   🎯 Respostas RAG: {response_stats['rag']}", "green")
+            print_colored(f"   🤖 Respostas FLAN-T5 (baixa relevância): {response_stats['flan_t5_low_rag']}", "yellow")
+            print_colored(f"   🧠 Respostas FLAN-T5 (sem contexto): {response_stats['flan_t5_no_rag']}", "blue")
+            print_colored(f"   🔧 Fallback por erro: {response_stats['flan_t5_error']}", "red")
+            print_colored("\n�👋 Obrigado por usar o assistente híbrido ICTA! Até logo!", "green")
+            break
+        
+        if not user_input:
+            print_colored("❓ Por favor, digite uma pergunta.", "yellow")
+            continue
+        
+        # Salvar pergunta do usuário
+        conversation_history.append({"role": "user", "content": user_input, "timestamp": datetime.now().isoformat()})
+        
+        print_colored(f"{Fore.CYAN}🔍 Processando pergunta...", "cyan")
+        
+        # Usar sistema híbrido
+        if rag_available:
+            try:
+                answer, source_type = hybrid_rag_query(user_input, top_k=8)
+                response_stats[source_type] += 1
+                
+                # Indicador visual do tipo de resposta
+                if source_type == "rag":
+                    indicator = "🎯 RAG"
+                elif source_type == "flan_t5_low_rag":
+                    indicator = "🤖 FLAN-T5 (baixa relevância RAG)"
+                elif source_type == "flan_t5_no_rag":
+                    indicator = "🧠 FLAN-T5 (sem contexto RAG)"
+                else:
+                    indicator = "🔧 FLAN-T5 (fallback)"
+                
+                print_colored(f"   Fonte: {indicator}", "gray")
+                
+            except Exception as e:
+                print_colored(f"❌ Erro no sistema híbrido: {e}", "red")
+                answer = flan_fallback.generate_fallback_response(user_input)
+                response_stats["flan_t5_error"] += 1
+        else:
+            # Apenas FLAN-T5 se não há RAG
+            print_colored("   🧠 Usando apenas FLAN-T5 (sem RAG)", "yellow")
+            answer = flan_fallback.generate_fallback_response(user_input)
+            response_stats["flan_t5_no_rag"] += 1
         
         # Exibir resposta
         print_colored(f"\n🤖 ICTA Assistant:", "cyan")
         print_colored(answer, "white")
         
-        # Salvar resposta
-        conversation_history.append({"role": "assistant", "content": answer})
+        # Perguntar feedback para melhoria contínua
+        print_colored(f"\n💭 Esta resposta foi útil? (s/n/parcial): ", "gray", end="")
+        try:
+            feedback = input().strip().lower()
+            if feedback in ['n', 'não', 'nao']:
+                print_colored("� Vou tentar uma abordagem diferente na próxima!", "blue")
+            elif feedback in ['parcial', 'mais ou menos']:
+                print_colored("📝 Entendi, vou me esforçar para ser mais preciso!", "yellow")
+            elif feedback in ['s', 'sim', 'yes']:
+                print_colored("😊 Fico feliz em ajudar!", "green")
+        except KeyboardInterrupt:
+            break
+        
+        # Salvar resposta com metadados
+        conversation_history.append({
+            "role": "assistant", 
+            "content": answer,
+            "source_type": source_type if rag_available else "flan_t5_only",
+            "feedback": feedback if 'feedback' in locals() else None,
+            "timestamp": datetime.now().isoformat()
+        })
     
     # Salvar histórico
     save_conversation_history(conversation_history)
@@ -865,7 +1494,7 @@ def show_help():
                          "Primeiros passos para usar o sistema")
         
         print_menu_option(2, "📁 Preparar documentos", 
-                         "Como organizar seus arquivos .txt")
+                         "Como organizar seus arquivos .jsonl")
         
         print_menu_option(3, "🔧 Solução de problemas", 
                          "Erros comuns e soluções")
@@ -901,7 +1530,7 @@ def show_getting_started():
     print(f"""
 {Fore.CYAN}Passo 1: Preparar documentos{Style.RESET_ALL}
 • Crie/verifique a pasta 'data' no diretório do programa
-• Adicione arquivos .txt com suas FAQs e documentos
+• Adicione arquivos .jsonl com suas FAQs e documentos
 • Use formato claro: "P: pergunta R: resposta"
 
 {Fore.CYAN}Passo 2: Construir base de conhecimento{Style.RESET_ALL}
@@ -925,17 +1554,14 @@ def show_document_guide():
     print(f"""
 {Fore.CYAN}Estrutura recomendada:{Style.RESET_ALL}
 data/
-├── faq_geral.txt
-├── produtos.txt
-├── suporte.txt
-└── politicas.txt
+├── faq_geral.jsonl
+├── produtos.jsonl
+├── suporte.jsonl
+└── politicas.jsonl
 
-{Fore.CYAN}Formato dos arquivos .txt:{Style.RESET_ALL}
-P: Como funciona o sistema?
-R: Nosso sistema utiliza inteligência artificial...
-
-P: Quais são os preços?
-R: Oferecemos planos a partir de R$ 99/mês...
+{Fore.CYAN}Formato dos arquivos .jsonl:{Style.RESET_ALL}
+{"id": "faq-001", "source": "faq_geral", "question": "Como funciona o sistema?", "answer": "Nosso sistema utiliza inteligência artificial..."}
+{"id": "faq-002", "source": "faq_geral", "question": "Quais são os preços?", "answer": "Oferecemos planos a partir de R$ 99/mês..."}
 
 {Fore.CYAN}Boas práticas:{Style.RESET_ALL}
 • Use linguagem clara e direta
@@ -957,9 +1583,9 @@ def show_troubleshooting():
     print(f"\n{Fore.GREEN}🔧 SOLUÇÃO DE PROBLEMAS")
     print(f"{Fore.GREEN}{'='*35}")
     print(f"""
-{Fore.RED}❌ "Nenhum arquivo .txt encontrado"{Style.RESET_ALL}
+{Fore.RED}❌ "Nenhum arquivo .jsonl encontrado"{Style.RESET_ALL}
 • Verifique se a pasta 'data' existe
-• Confirme que há arquivos .txt na pasta
+• Confirme que há arquivos .jsonl na pasta
 • Verifique se os arquivos não estão vazios
 
 {Fore.RED}❌ "Modelo não encontrado"{Style.RESET_ALL}

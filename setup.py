@@ -28,15 +28,35 @@ def read_requirements() -> list[str]:
     return requirements
 
 if __name__ == "__main__":
-    _ = setup(
-    name="icta-rag-chatbot",
-    version="1.0.0",
-    author="ICTA Technology",
-    author_email="contato@ictatechnology.com",
-    description="RAG Chatbot para FAQ usando FAISS e modelos locais",
-    long_description=read_readme(),
-    long_description_content_type="text/markdown",
-    url="https://github.com/jesseff20/rag-chatbot",
+    import sys
+    
+    # Se executado sem argumentos, mostra instruções de instalação
+    if len(sys.argv) == 1:
+        print("🚀 RAG Chatbot ICTA - Instruções de Instalação")
+        print("=" * 50)
+        print()
+        print("Para instalar as dependências, execute um dos comandos:")
+        print("1. pip install -r requirements.txt")
+        print("2. python -m pip install -r requirements.txt")
+        print()
+        print("Para usar o chatbot após instalação:")
+        print("python rag_chatbot_icta.py")
+        print()
+        print("Para instalação em modo desenvolvimento:")
+        print("python setup.py develop")
+        print()
+        sys.exit(0)
+    else:
+        # Executa o setup normalmente com os argumentos fornecidos
+        _ = setup(
+        name="icta-rag-chatbot",
+        version="1.0.0",
+        author="ICTA Technology",
+        author_email="jesse.fernandes@ictatechnology.com.br",
+        description="RAG Chatbot para FAQ usando FAISS e modelos locais",
+        long_description=read_readme(),
+        long_description_content_type="text/markdown",
+        url="https://github.com/jesseff20/rag-chatbot",
     
     # Configuração do pacote
     py_modules=["rag_chatbot_icta"],

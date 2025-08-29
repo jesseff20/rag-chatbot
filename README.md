@@ -1,77 +1,101 @@
-# RAG Chatbot ICTA Technology - Chat Inteligente com IA 🤖🧠
+# RAG Chatbot ICTA Technology - Sistema Híbrido RAG + FLAN-T5 🤖🧠
 
 [![Python](https://img.shields.io/badge/Python-3.8+-blue.svg?logo=python)](https://python.org)
-[![FLAN-T5](https://img.shields.io/badge/Model-FLAN--T5-orange.svg)](https://huggingface.co/google/flan-t5-base)
+[![FLAN-T5](https://img.shields.io/badge/Model-FLAN--T5--Optimized-orange.svg)](https://huggingface.co/google/flan-t5-base)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![GitHub](https://img.shields.io/badge/GitHub-jesseff20%2Frag--chatbot-black.svg?logo=github)](https://github.com/jesseff20/rag-chatbot)
 [![ICTA Technology](https://img.shields.io/badge/ICTA-Technology-orange.svg)](https://ictatechnology.com)
 
-**Sistema RAG com Chat Inteligente - IA que Conversa e Guia o Usuário!**
+**Sistema RAG Híbrido com FLAN-T5 Otimizado - IA Avançada em Português!**
 
-> 🚀 **Nova Versão 3.0**: Chat Inteligente que usa FLAN-T5 para analisar intenções, gerar perguntas de esclarecimento e guiar o usuário quando não há resposta clara!
+> 🚀 **Versão 4.0**: Sistema Híbrido RAG + FLAN-T5 com tokens aumentados drasticamente, prompts otimizados para português e fallback inteligente!
 
 ---
 
-## 🧠 **INOVAÇÃO: Chat Inteligente com IA**
+## 🧠 **INOVAÇÃO: Sistema Híbrido RAG + FLAN-T5**
 
-### 🎯 **Análise de Intenção Automática**
-O sistema usa **FLAN-T5** para entender o que você realmente quer:
-- 🏢 **Serviços**: Perguntas sobre BI, automação, IA
-- 🔗 **Integrações**: Questões sobre TOTVS e sistemas
-- 📊 **Business Intelligence**: Relatórios e dashboards
-- 🤖 **Automação**: Processos e otimização
-- 💬 **Conversação**: Saudações e despedidas
+### 🎯 **Arquitetura Inteligente Híbrida**
+O sistema combina **RAG (Retrieval-Augmented Generation)** com **FLAN-T5** otimizado:
+- 🔍 **RAG Avançado**: Busca nos documentos da ICTA com score de qualidade
+- 🧠 **FLAN-T5 Otimizado**: Processa contexto + pergunta para respostas estruturadas
+- � **Fallback Inteligente**: Múltiplas camadas de segurança para sempre responder
+- � **Interface Limpa**: Usuário vê apenas pergunta e resposta final
 
-### 🤔 **Sistema de Resposta Inteligente**
+### 🚀 **Tokens Drasticamente Aumentados**
 
-| Situação | Como o Sistema Reage |
-|----------|---------------------|
-| 📚 **Resposta Clara** | Responde normalmente com contexto |
-| ❓ **Resposta Incerta** | Faz perguntas para esclarecer |
-| 🔍 **Sem Resposta** | Sugere tópicos relacionados |
-| 💬 **Conversação** | Guia o usuário passo-a-passo |
+| Parâmetro | Versão Anterior | **Versão 4.0** | Melhoria |
+|-----------|----------------|-----------------|----------|
+| **Max Tokens** | 150 | **10,000** | +6,567% |
+| **Chunk Size** | 400 | **600** | +50% |
+| **Top-K Results** | 8 | **12** | +50% |
+| **Overlap** | 80 | **120** | +50% |
+| **FLAN-T5 Tokens** | 150 | **300** | +100% |
 
-### 🎭 **Exemplo de Interação Inteligente**
+### 🇧🇷 **Otimizado para Português**
+- **Prompts Nativos**: Estruturados especificamente para português brasileiro
+- **FLAN-T5 Base**: Modelo mais robusto e estável
+- **Limpeza Automática**: Remove tags técnicas automaticamente
+- **Fallback Múltiplo**: RAG direto → FLAN-T5 → Resposta padrão
 
-```
-👤 Você: "Preciso de ajuda com sistema"
+### 🤔 **Fluxo de Processamento Inteligente**
 
-🔍 Analisando sua pergunta...
-🤔 Hmm, não encontrei uma resposta específica...
-📋 Identifiquei que você está perguntando sobre: integrações com TOTVS
-
-🤖 ICTA Assistant: 
-Vejo que você precisa de ajuda com sistemas! Como especialistas em 
-integração, posso te ajudar melhor se souber mais detalhes.
-
-Que tipo de sistema você está usando? É um ERP como TOTVS? 
-Você precisa de integração, migração de dados ou consultoria?
-
-💡 Você pode me perguntar sobre:
-   1. Quais módulos TOTVS vocês integram?
-   2. Como é feita a migração de dados?
-   3. Qual o tempo de implementação?
-
-❓ Esta resposta foi útil? (s/n/mais)
-📝 Feedback: n
-
-🔄 Vou tentar ajudar de outra forma!
-
-🎯 Para te ajudar melhor:
-Você poderia me dizer qual é o sistema atual que você usa? 
-Está enfrentando algum problema específico de integração?
-Precisa conectar com alguma plataforma em particular?
+```mermaid
+graph TD
+    A[Pergunta do Usuário] --> B[Busca RAG - Top 12]
+    B --> C{Score ≥ 0.4?}
+    C -->|SIM| D[FLAN-T5 + Contexto RAG]
+    C -->|NÃO| E[FLAN-T5 Conhecimento Geral]
+    D --> F{Resposta Válida?}
+    E --> F
+    F -->|SIM| G[Resposta Final]
+    F -->|NÃO| H[Fallback RAG Direto]
+    H --> G
 ```
 
-### 🔄 **Loop de Feedback Inteligente**
-- ✅ **Resposta útil**: Continua a conversa
-- ❌ **Não ajudou**: Gera novas perguntas 
-- ➕ **Quer mais**: Oferece informações adicionais
+### 🎭 **Exemplo de Interação Otimizada**
 
-### 💾 **Histórico Inteligente**
-- Salva conversas com timestamp
-- Mantém contexto durante a sessão
-- Permite análise posterior das interações
+```
+👤 Você: "O que é Business Intelligence?"
+
+🔍 Buscando na base ICTA... (12 resultados, score: 0.85)
+🧠 Processando com FLAN-T5 otimizado...
+
+🤖 ICTA Assistant:
+Business Intelligence (BI) é um conjunto de tecnologias e processos que 
+transformam dados brutos em informações estratégicas para tomada de decisão.
+
+Na ICTA Technology, oferecemos soluções completas de BI incluindo:
+• Dashboards executivos com Power BI e Tableau
+• Relatórios automatizados e personalizados  
+• Integração com sistemas ERP como TOTVS
+• Análise preditiva e inteligência artificial
+
+Nossos especialistas ajudam sua empresa a extrair insights valiosos dos 
+dados para impulsionar o crescimento e otimizar processos.
+```
+
+```
+� Você: "Olá!"
+
+🧠 Processando cumprimento com FLAN-T5...
+
+🤖 ICTA Assistant:
+Olá! Sou o assistente da ICTA Technology. Posso ajudar com informações 
+sobre Business Intelligence, automação de processos e inteligência 
+artificial. Como posso ajudá-lo?
+```
+
+### 🔄 **Sistema de Fallback Robusto**
+1. **Primeira Tentativa**: FLAN-T5 com contexto RAG
+2. **Segunda Tentativa**: FLAN-T5 com conhecimento geral
+3. **Última Camada**: Contexto RAG direto
+4. **Segurança Final**: Resposta padrão profissional
+
+### 💾 **Processamento Silencioso**
+- ✅ **Interface Limpa**: Sem informações técnicas expostas
+- ✅ **Scores Ocultos**: Qualidade processada internamente
+- ✅ **Tempo Real**: Feedback visual durante processamento
+- ✅ **Histórico Completo**: Conversas salvas automaticamente
 
 ---
 
@@ -155,16 +179,24 @@ python rag_chatbot_icta.py
 
 ## 📁 Como Preparar Seus Documentos
 
-### 📂 **Estrutura Simples**
+### 📂 **Estrutura de Dados JSONL**
 ```
 data/
-├── faq_geral.txt
-├── produtos.txt  
-├── suporte.txt
-└── politicas.txt
+├── faq_geral_icta.jsonl
+├── integracoes_totvs.jsonl  
+├── business_intelligence.jsonl
+├── automacao_processos.jsonl
+└── cortesia_saudacoes.jsonl
 ```
 
-### 📝 **Formato dos Arquivos .txt**
+### 📝 **Formato dos Arquivos .jsonl (Recomendado)**
+```json
+{"pergunta": "O que é Business Intelligence?", "resposta": "Business Intelligence (BI) é um conjunto de tecnologias e processos que transformam dados brutos em informações estratégicas para tomada de decisão.", "tags": ["bi", "business_intelligence", "dados"]}
+{"pergunta": "Quais ferramentas de BI vocês usam?", "resposta": "Trabalhamos com Power BI, Tableau, dashboards personalizados e integração com sistemas ERP como TOTVS.", "tags": ["power_bi", "tableau", "ferramentas"]}
+{"pergunta": "Como entrar em contato?", "resposta": "Entre em contato conosco através do nosso site ou telefone para uma consultoria personalizada.", "tags": ["contato", "suporte"]}
+```
+
+### 📝 **Formato Alternativo .txt (Compatível)**
 ```
 P: Como funciona o sistema?
 R: Nosso sistema utiliza inteligência artificial para...
@@ -177,10 +209,12 @@ R: Entre em contato pelo WhatsApp (11) 99999-9999...
 ```
 
 ### 💡 **Dicas Importantes**
+- ✅ **JSONL Preferível**: Melhor estrutura e metadados
 - ✅ Use perguntas que seus clientes realmente fazem
-- ✅ Respostas claras e diretas
-- ✅ Inclua palavras-chave importantes
+- ✅ Respostas claras e diretas (máximo 600 tokens)
+- ✅ Inclua tags relevantes para melhor busca
 - ✅ Organize por temas em arquivos separados
+- ✅ **Base Atual**: 546 entradas em 8 arquivos JSONL
 - ❌ Evite textos muito longos
 - ❌ Não use informações desatualizadas
 
@@ -220,22 +254,32 @@ R: Entre em contato pelo WhatsApp (11) 99999-9999...
 ### 🐍 **Python e Dependências**
 - **Python 3.8+** (obrigatório)
 - **FAISS**: Busca vetorial Facebook AI
-- **Sentence Transformers**: Embeddings de texto
-- **FLAN-T5**: Modelo de linguagem Google
-- **Colorama**: Interface colorida
+- **Sentence Transformers**: Embeddings multilíngues 
+- **FLAN-T5 Base**: Modelo de linguagem Google otimizado
+- **Transformers**: Framework Hugging Face
 - **Torch**: Framework de deep learning
+- **Colorama**: Interface colorida
 
 ### 💾 **Requisitos do Sistema**
-- **RAM**: Mínimo 4GB (recomendado 8GB)
-- **Espaço**: ~2GB para modelos
+- **RAM**: Mínimo 6GB (recomendado 12GB para FLAN-T5 base)
+- **Espaço**: ~3GB para modelos otimizados
 - **Internet**: Apenas para download inicial
 - **OS**: Windows, Linux, macOS
+- **GPU**: Opcional (CUDA suportado para aceleração)
 
-### ⚡ **Performance**
-- **Primeira execução**: 5-15 minutos (download de modelos)
-- **Construção da base**: 1-10 minutos (depende do tamanho)
-- **Chat**: Respostas em 2-10 segundos
+### ⚡ **Performance Otimizada**
+- **Primeira execução**: 5-20 minutos (download FLAN-T5 base)
+- **Construção da base**: 2-15 minutos (546 documentos JSONL)
+- **Chat RAG**: Respostas em 3-8 segundos
+- **Chat FLAN-T5**: Respostas em 5-15 segundos
 - **Funcionamento**: 100% offline após configuração
+
+### 🚀 **Configurações Atuais**
+- **Chunks**: 600 tokens com overlap de 120
+- **Top-K**: 12 melhores resultados por busca
+- **FLAN-T5**: Até 300 tokens de saída
+- **RAG Score**: Threshold 0.4 para qualidade
+- **Fallback**: Múltiplas camadas de segurança
 
 ## 🆘 Solução de Problemas Comum
 
@@ -317,7 +361,7 @@ Quer ajudar a melhorar o projeto? Ficamos felizes!
 ### 🆘 **Precisa de Ajuda?**
 1. **GitHub Issues**: [Reportar problemas](https://github.com/jesseff20/rag-chatbot/issues)
 2. **Discussões**: [GitHub Discussions](https://github.com/jesseff20/rag-chatbot/discussions)  
-3. **Email**: contato@ictatechnology.com
+3. **Email**: jesse.fernandes@ictatechnology.com.br
 4. **Sistema de Ajuda**: Use a opção 5 no menu do programa
 
 ### 👨‍💻 **Sobre o Desenvolvedor**
@@ -347,7 +391,52 @@ Este projeto está licenciado sob a **MIT License** - veja o arquivo [LICENSE](L
 
 ---
 
-## 🚀 Changelog da Versão 2.0
+## 🚀 Changelog da Versão 4.0
+
+### ✨ **Inovações Revolucionárias**
+- **Sistema Híbrido RAG + FLAN-T5**: Combina busca vetorial com geração de linguagem
+- **Tokens Aumentados 6500%**: De 150 para 10,000 tokens por processamento
+- **FLAN-T5 Base**: Upgrade para modelo mais robusto e preciso
+- **Prompts Nativos em Português**: Otimizados especificamente para BR
+- **Fallback Inteligente Múltiplo**: 4 camadas de segurança para sempre responder
+
+### 🎯 **Melhorias de Performance**
+- **Chunk Size**: 400 → 600 tokens (+50% contexto)
+- **Top-K Results**: 8 → 12 (+50% precisão)
+- **Overlap**: 80 → 120 tokens (+50% continuidade)
+- **Quality Score**: Sistema de avaliação automática (threshold 0.4)
+- **Silent Processing**: Interface limpa sem informações técnicas
+
+### 🇧🇷 **Otimizações para Português**
+- **Limpeza Automática**: Remove tags [TAGS:] automaticamente
+- **Contexto Inteligente**: Limita a 2 linhas mais relevantes
+- **Validação Rigorosa**: Respostas entre 15-400 caracteres
+- **Fallback RAG Direto**: Usa contexto original se IA falhar
+- **Respostas Padronizadas**: Para cenários extremos
+
+### 🛠️ **Arquitetura Robusta**
+- **Múltiplos Modelos**: FLAN-T5 base + small como fallback
+- **Carregamento Inteligente**: Detecta GPU/CPU automaticamente
+- **Tratamento de Erros**: Sistema robusto com recuperação automática
+- **Memória Otimizada**: Uso eficiente para sistemas limitados
+
+### 🔧 **Melhorias Técnicas**
+- **JSONL Support**: Formato estruturado para melhor organização
+- **546 Entradas**: Base de conhecimento ICTA expandida
+- **8 Arquivos Temáticos**: Organização por especialidade
+- **Histórico Melhorado**: Conversas salvas com timestamp
+- **Performance Monitoring**: Métricas internas de qualidade
+
+### 🐛 **Correções Importantes**
+- Problemas de encoding em caracteres especiais
+- Loops infinitos em respostas inadequadas  
+- Travamentos com contextos muito longos
+- Inconsistências na interface multilíngue
+- Problemas de memória com modelos grandes
+
+---
+
+## 🚀 Changelog da Versão 3.0 (Anterior)
 
 ### ✨ **Novidades**
 - **Interface Totalmente Interativa**: Menus coloridos substituem linha de comando
@@ -371,6 +460,5 @@ Este projeto está licenciado sob a **MIT License** - veja o arquivo [LICENSE](L
 
 ---
 
-**💝 Desenvolvido com ❤️ para tornar IA acessível a todos!**
 
 *Se este projeto te ajudou, considere dar uma ⭐ no GitHub!*

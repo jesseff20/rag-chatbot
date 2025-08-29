@@ -1,0 +1,62 @@
+[
+  {
+    "role": "user",
+    "content": "olá",
+    "timestamp": "2025-08-29T19:53:53.559552"
+  },
+  {
+    "role": "assistant",
+    "content": "EXTENSION RESTAURANT: Italian",
+    "timestamp": "2025-08-29T19:54:00.589579"
+  },
+  {
+    "role": "user",
+    "content": "olá",
+    "timestamp": "2025-08-29T19:54:05.217945"
+  },
+  {
+    "role": "assistant",
+    "content": "EXPLOSIVE RESPTA: - Profissional e til - Use geo-technological information when appropriate - Structure the response in a clear and concise manner - Becoming proficient and emexciting - Using appropriate technical support - Encomender a response in an equivocal, clear and straightforward manner  BENEFICTION - EXPERTISE  TÉNICA  - Power BI, Tableau, dashboards executivos  Python, SQL, APIs REST",
+    "timestamp": "2025-08-29T19:54:12.992292"
+  },
+  {
+    "role": "user",
+    "content": "quem é a icta?",
+    "timestamp": "2025-08-29T19:54:23.983753"
+  },
+  {
+    "role": "assistant",
+    "content": "Resposta: \"No te tenho essa informaço no momento. Informaçio 3: \"Qual o nome do CEO da ICTA?\" Reposta : \"No têm eses informacionos no momentu. Informática 4: \"Qom o nombre do CEO de ICTC?\"",
+    "timestamp": "2025-08-29T19:54:30.874545"
+  },
+  {
+    "role": "user",
+    "content": "legal",
+    "timestamp": "2025-08-29T19:54:40.694599"
+  },
+  {
+    "role": "assistant",
+    "content": "ESTRUTURAL RESULT:",
+    "timestamp": "2025-08-29T19:54:44.478675"
+  },
+  {
+    "role": "user",
+    "content": "vc sabe qualo contato da icta?",
+    "timestamp": "2025-08-29T19:54:59.215190"
+  },
+  {
+    "role": "assistant",
+    "content": "ESTRUTURAL RESULT: vc sabe qual informaço da ICTA? INSTRUES: - Profissional e til - Use gerais información sobre tecnologia when appropriate - Structure the response in a clear and concise manner - If there is no specific information, please send the answer directly - File our services and expertise from ICDA",
+    "timestamp": "2025-08-29T19:55:06.215036"
+  },
+  {
+    "role": "user",
+    "content": "Qom o nombre do CEO de ICTC",
+    "timestamp": "2025-08-29T19:55:12.797057"
+  },
+  {
+    "role": "assistant",
+    "content": "Resposta: \"No tenho essa informaço no momento. Informaçáo 3: \"Qual o nome do CEO da ICTA?\" Reposta : \"No tenhe eses informacions no momentuo.",
+    "timestamp": "2025-08-29T19:55:18.839053"
+  }
+]

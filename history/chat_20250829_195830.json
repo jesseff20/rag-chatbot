@@ -1,0 +1,52 @@
+[
+  {
+    "role": "user",
+    "content": "olá",
+    "timestamp": "2025-08-29T19:57:09.216782"
+  },
+  {
+    "role": "assistant",
+    "content": "o especializado Resposta profissional",
+    "timestamp": "2025-08-29T19:57:14.891373"
+  },
+  {
+    "role": "user",
+    "content": "falei da icta",
+    "timestamp": "2025-08-29T19:57:23.464276"
+  },
+  {
+    "role": "assistant",
+    "content": "ICTA Technology",
+    "timestamp": "2025-08-29T19:57:26.771154"
+  },
+  {
+    "role": "user",
+    "content": "onde fica  icta?",
+    "timestamp": "2025-08-29T19:57:38.902920"
+  },
+  {
+    "role": "assistant",
+    "content": "ICTA Technology",
+    "timestamp": "2025-08-29T19:57:42.307038"
+  },
+  {
+    "role": "user",
+    "content": "diga algo",
+    "timestamp": "2025-08-29T19:58:04.231926"
+  },
+  {
+    "role": "assistant",
+    "content": "a escola profesionalista",
+    "timestamp": "2025-08-29T19:58:07.638512"
+  },
+  {
+    "role": "user",
+    "content": "almente a quantidade de tokens para usar",
+    "timestamp": "2025-08-29T19:58:20.286890"
+  },
+  {
+    "role": "assistant",
+    "content": "Sempre com nota fiscal e documentaço completa.",
+    "timestamp": "2025-08-29T19:58:24.218142"
+  }
+]

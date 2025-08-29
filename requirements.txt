@@ -1,21 +1,27 @@
-# Dependências principais para o RAG Chatbot ICTA
+# Dependências principais para o RAG Chatbot ICTA - Versão 4.0
+# Sistema Híbrido RAG + FLAN-T5 com tokens aumentados
 # Instalação: pip install -r requirements.txt
 
-# Busca vetorial e embeddings
+# Busca vetorial e embeddings (otimizado para português)
 faiss-cpu>=1.7.4
 sentence-transformers>=2.2.2
 numpy>=1.21.0
 
-# Modelos de linguagem e transformers
+# Modelos de linguagem FLAN-T5 otimizados
 transformers>=4.21.0
 torch>=1.12.0
 accelerate>=0.20.0
 huggingface_hub>=0.16.0
+tokenizers>=0.13.0
 
-# Utilitários e interface
+# Utilitários e interface melhorada
 tqdm>=4.64.0
 colorama>=0.4.5
 requests>=2.28.0
+typing_extensions>=4.0.0
+
+# Dependências para processamento de dados JSONL
+jsonlines>=3.1.0
 
 # Dependências opcionais para funcionalidades avançadas (comentadas por padrão)
 # langchain>=0.0.300

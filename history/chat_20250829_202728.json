@@ -1,0 +1,52 @@
+[
+  {
+    "role": "user",
+    "content": "olá",
+    "timestamp": "2025-08-29T20:26:23.582793"
+  },
+  {
+    "role": "assistant",
+    "content": "Olá! Sou o assistente da ICTA Technology. Posso ajudar com informações sobre Business Intelligence, automação de processos e inteligência artificial. Como posso ajudá-lo?",
+    "timestamp": "2025-08-29T20:26:28.931445"
+  },
+  {
+    "role": "user",
+    "content": "faa mais sobre os servilos da icta?",
+    "timestamp": "2025-08-29T20:26:37.366517"
+  },
+  {
+    "role": "assistant",
+    "content": "ICTA Technology em portuguese",
+    "timestamp": "2025-08-29T20:26:40.474082"
+  },
+  {
+    "role": "user",
+    "content": "Business Intelligence",
+    "timestamp": "2025-08-29T20:26:45.518235"
+  },
+  {
+    "role": "assistant",
+    "content": "a resposta clara e profissional en inglês.",
+    "timestamp": "2025-08-29T20:26:49.698536"
+  },
+  {
+    "role": "user",
+    "content": "explica melhor",
+    "timestamp": "2025-08-29T20:26:59.240706"
+  },
+  {
+    "role": "assistant",
+    "content": "Responda como profesional da ICTA Technology em portugal. A CICT Technology is specialized in Business Intelligence, process automation and artificial intelligence for companies.",
+    "timestamp": "2025-08-29T20:27:03.522760"
+  },
+  {
+    "role": "user",
+    "content": "não entendi",
+    "timestamp": "2025-08-29T20:27:12.418436"
+  },
+  {
+    "role": "assistant",
+    "content": "No entanto, a resumé é: no entendi",
+    "timestamp": "2025-08-29T20:27:15.913374"
+  }
+]
