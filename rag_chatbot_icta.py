@@ -596,93 +596,38 @@ def clear_screen():
     os.system('cls' if os.name == 'nt' else 'clear')
 
 def classify_query_intent(question: str) -> dict:
-    """Classifica a intenção da pergunta usando FLAN-T5"""
+    """Classifica a intenção da pergunta usando palavras-chave simples"""
     try:
-        config = DEFAULT_CONFIG
-        model_name = config["generation_model"]
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        tokenizer = AutoTokenizer.from_pretrained(model_name)
-        model = AutoModelForSeq2SeqLM.from_pretrained(model_name).to(device)
+        question_lower = question.lower()
         
-        # Prompt para classificação de intenção
-        classification_prompt = f"""Analise esta pergunta e classifique em uma das categorias:
-CATEGORIAS: servicos, integracao, bi, automacao, ia, geral, saudacao, despedida, unclear
-
-Pergunta: "{question}"
-
-Categoria:"""
+        # Classificação baseada em palavras-chave
+        if any(word in question_lower for word in ['olá', 'oi', 'bom dia', 'boa tarde', 'boa noite', 'hello', 'hey']):
+            return {"intent": "saudacao", "topic": "saudação", "confidence": "high"}
         
-        inputs = tokenizer(classification_prompt, return_tensors="pt", max_length=512, truncation=True).to(device)
+        elif any(word in question_lower for word in ['tchau', 'até logo', 'bye', 'adeus', 'obrigado', 'valeu']):
+            return {"intent": "despedida", "topic": "despedida", "confidence": "high"}
         
-        with torch.no_grad():
-            outputs = model.generate(
-                **inputs,
-                max_length=50,
-                temperature=0.3,
-                do_sample=True,
-                pad_token_id=tokenizer.eos_token_id
-            )
+        elif any(word in question_lower for word in ['totvs', 'integração', 'integrar', 'conectar', 'sistema', 'erp']):
+            return {"intent": "integracao", "topic": "integrações com TOTVS", "confidence": "high"}
         
-        intent = tokenizer.decode(outputs[0], skip_special_tokens=True).strip().lower()
+        elif any(word in question_lower for word in ['bi', 'business intelligence', 'relatório', 'dashboard', 'kpi']):
+            return {"intent": "bi", "topic": "Business Intelligence", "confidence": "high"}
         
-        # Mapear intenções para tópicos
-        intent_mapping = {
-            "servicos": "serviços oferecidos pela ICTA",
-            "integracao": "integrações com TOTVS",
-            "bi": "Business Intelligence e relatórios",
-            "automacao": "automação de processos",
-            "ia": "inteligência artificial",
-            "geral": "informações gerais da empresa",
-            "saudacao": "saudação",
-            "despedida": "despedida",
-            "unclear": "não está claro"
-        }
+        elif any(word in question_lower for word in ['automação', 'automatizar', 'processo', 'workflow']):
+            return {"intent": "automacao", "topic": "automação de processos", "confidence": "high"}
         
-        return {
-            "intent": intent,
-            "topic": intent_mapping.get(intent, "informações gerais"),
-            "confidence": "high" if intent in intent_mapping else "low"
-        }
+        elif any(word in question_lower for word in ['ia', 'inteligência artificial', 'machine learning', 'ai']):
+            return {"intent": "ia", "topic": "inteligência artificial", "confidence": "high"}
         
+        elif any(word in question_lower for word in ['serviço', 'oferecem', 'fazem', 'trabalham', 'consultoria']):
+            return {"intent": "servicos", "topic": "serviços da ICTA", "confidence": "high"}
+        
+        else:
+            return {"intent": "geral", "topic": "informações gerais", "confidence": "medium"}
+            
     except Exception as e:
         print_colored(f"❌ Erro na classificação: {e}", "red")
-        return {"intent": "unclear", "topic": "informações gerais", "confidence": "low"}
-
-def generate_clarification_questions(intent_info: dict, original_question: str) -> str:
-    """Gera perguntas de esclarecimento usando FLAN-T5"""
-    try:
-        config = DEFAULT_CONFIG
-        model_name = config["generation_model"]
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        tokenizer = AutoTokenizer.from_pretrained(model_name)
-        model = AutoModelForSeq2SeqLM.from_pretrained(model_name).to(device)
-        
-        # Prompt para gerar perguntas de esclarecimento
-        clarification_prompt = f"""Você é um assistente da ICTA Technology, empresa de consultoria em BI, automação e IA.
-
-A pergunta do usuário "{original_question}" não está clara sobre o tópico "{intent_info['topic']}".
-
-Faça 2-3 perguntas específicas para ajudar a entender melhor o que o usuário precisa sobre este tópico.
-
-Perguntas de esclarecimento:"""
-        
-        inputs = tokenizer(clarification_prompt, return_tensors="pt", max_length=512, truncation=True).to(device)
-        
-        with torch.no_grad():
-            outputs = model.generate(
-                **inputs,
-                max_length=200,
-                temperature=0.7,
-                do_sample=True,
-                pad_token_id=tokenizer.eos_token_id
-            )
-        
-        questions = tokenizer.decode(outputs[0], skip_special_tokens=True).strip()
-        return questions
-        
-    except Exception as e:
-        print_colored(f"❌ Erro na geração de perguntas: {e}", "red")
-        return "Pode me dar mais detalhes sobre o que você precisa?"
+        return {"intent": "geral", "topic": "informações gerais", "confidence": "low"}
 
 def generate_guided_response(contexts: list, question: str, intent_info: dict) -> str:
     """Gera resposta guiada com interação usando FLAN-T5"""
@@ -695,52 +640,61 @@ def generate_guided_response(contexts: list, question: str, intent_info: dict) -
         
         # Verifica se há contextos relevantes
         if not contexts or all(ctx.score < 0.3 for ctx in contexts):
-            # Sem contextos relevantes - guiar o usuário
-            guidance_prompt = f"""Você é um assistente da ICTA Technology.
-
-O usuário perguntou: "{question}"
-Tópico identificado: {intent_info['topic']}
-
-Não encontrei informações específicas sobre isso. 
-
-Como assistente especializado em BI, automação e IA, ofereça ajuda alternativa:
-1. Sugira tópicos relacionados que podem interessar
-2. Faça perguntas para entender melhor a necessidade
-3. Ofereça opções de contato se necessário
-
-Resposta útil:"""
-        else:
-            # Com contextos - resposta normal melhorada
-            context_text = "\n".join([f"- {ctx.text[:200]}..." for ctx in contexts[:3]])
-            
-            guidance_prompt = f"""Você é um assistente especializado da ICTA Technology.
+            # Sem contextos relevantes - resposta conversacional simples
+            if intent_info.get('intent') == 'saudacao':
+                return "Olá! 👋 Sou o assistente da ICTA Technology. Como posso ajudar você hoje? Posso esclarecer dúvidas sobre nossos serviços de BI, automação e IA!"
+            elif intent_info.get('intent') == 'despedida':
+                return "Até logo! 👋 Foi um prazer ajudar. Se precisar de mais alguma coisa sobre BI, automação ou IA, estarei aqui!"
+            else:
+                guidance_prompt = f"""Você é um assistente da ICTA Technology. Responda de forma conversacional e útil.
 
 Pergunta: {question}
-Contexto encontrado:
-{context_text}
+Tópico: {intent_info.get('topic', 'geral')}
 
-Com base no contexto, forneça uma resposta completa e útil. Se a informação não for suficiente, faça perguntas para ajudar melhor o usuário.
+Responda de forma amigável, faça perguntas se necessário, e sugira como podemos ajudar.
 
 Resposta:"""
+        else:
+            # Com contextos - resposta com base no conteúdo
+            context_text = "\n".join([f"- {ctx.text[:200]}..." for ctx in contexts[:2]])
+            
+            guidance_prompt = f"""Baseado no contexto, responda a pergunta de forma conversacional e útil.
+
+Contexto: {context_text}
+Pergunta: {question}
+
+Resposta conversacional:"""
         
-        inputs = tokenizer(guidance_prompt, return_tensors="pt", max_length=512, truncation=True).to(device)
+        inputs = tokenizer(guidance_prompt, return_tensors="pt", max_length=400, truncation=True).to(device)
         
         with torch.no_grad():
             outputs = model.generate(
                 **inputs,
-                max_length=300,
-                temperature=0.6,
+                max_length=200,
+                temperature=0.5,
                 do_sample=True,
-                repetition_penalty=1.2,
+                repetition_penalty=1.1,
                 pad_token_id=tokenizer.eos_token_id
             )
         
         response = tokenizer.decode(outputs[0], skip_special_tokens=True).strip()
-        return response
+        
+        # Limpar a resposta removendo o prompt
+        if "Resposta:" in response:
+            response = response.split("Resposta:")[-1].strip()
+        
+        return response if response else "Desculpe, não consegui gerar uma resposta adequada. Pode reformular sua pergunta?"
         
     except Exception as e:
         print_colored(f"❌ Erro na geração de resposta: {e}", "red")
-        return "Desculpe, houve um erro. Pode reformular sua pergunta?"
+        
+        # Fallback simples baseado na intenção
+        if intent_info.get('intent') == 'saudacao':
+            return "Olá! 👋 Sou o assistente da ICTA Technology. Como posso ajudar?"
+        elif intent_info.get('intent') == 'despedida':
+            return "Até logo! 👋 Obrigado por usar nossos serviços!"
+        else:
+            return f"Entendi que você está perguntando sobre {intent_info.get('topic', 'nossos serviços')}. Pode me dar mais detalhes para te ajudar melhor?"
 
 def suggest_related_topics(intent: str) -> list[str]:
     """Sugere tópicos relacionados baseado na intenção"""
@@ -812,8 +766,6 @@ def interactive_chat():
         # Salvar pergunta do usuário
         conversation_history.append({"role": "user", "content": user_input})
         
-        print_colored(f"\n🔍 Analisando sua pergunta...", "blue")
-        
         # 1. Classificar intenção da pergunta
         intent_info = classify_query_intent(user_input)
         
@@ -824,27 +776,22 @@ def interactive_chat():
             print_colored(f"❌ Erro na busca: {e}", "red")
             search_results = []
         
-        # 3. Verificar qualidade dos resultados
+        # 3. Gerar resposta conversacional
         has_good_results = search_results and any(result.score > 0.4 for result in search_results)
         
         if has_good_results:
-            # Resposta normal com contexto
-            print_colored(f"💡 Encontrei informações relevantes!", "green")
+            # Resposta com contexto
             answer = generate_guided_response(search_results, user_input, intent_info)
         else:
-            # Sem resultados bons - modo interativo
-            print_colored(f"🤔 Hmm, não encontrei uma resposta específica...", "yellow")
-            print_colored(f"📋 Identifiquei que você está perguntando sobre: {intent_info['topic']}", "blue")
-            
-            # Gerar resposta guiada
+            # Resposta sem contexto - modo conversacional
             answer = generate_guided_response([], user_input, intent_info)
             
             # Adicionar sugestões de tópicos
             suggestions = suggest_related_topics(intent_info['intent'])
             if suggestions:
-                answer += f"\n\n💡 Você pode me perguntar sobre:\n"
+                answer += f"\n\n💡 Você também pode me perguntar sobre:\n"
                 for i, suggestion in enumerate(suggestions, 1):
-                    answer += f"   {i}. {suggestion}\n"
+                    answer += f"   • {suggestion}\n"
         
         # Exibir resposta
         print_colored(f"\n🤖 ICTA Assistant:", "cyan")
@@ -852,18 +799,6 @@ def interactive_chat():
         
         # Salvar resposta
         conversation_history.append({"role": "assistant", "content": answer})
-        
-        # Perguntar se ajudou
-        print_colored(f"\n❓ Esta resposta foi útil? (s/n/mais)", "blue")
-        feedback = input(f"{Fore.YELLOW}📝 Feedback: {Style.RESET_ALL}").strip().lower()
-        
-        if feedback == 'n' or feedback == 'nao':
-            print_colored("🔄 Vou tentar ajudar de outra forma!", "blue")
-            clarification = generate_clarification_questions(intent_info, user_input)
-            print_colored(f"\n🎯 Para te ajudar melhor:", "cyan")
-            print_colored(clarification, "white")
-        elif feedback == 'mais':
-            print_colored("🔍 Pode fazer uma pergunta mais específica sobre o mesmo tópico!", "blue")
     
     # Salvar histórico
     save_conversation_history(conversation_history)
