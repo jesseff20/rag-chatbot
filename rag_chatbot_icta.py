@@ -12,14 +12,15 @@ import os
 import json
 import sys
 import time
+from datetime import datetime
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, List, Dict, Optional
 
 # Imports principais
 import faiss  # type: ignore
 import numpy as np
 from tqdm import tqdm
-from colorama import Fore, Style, init
+from colorama import Fore, Style, init, Back
 from sentence_transformers import SentenceTransformer
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 import torch
@@ -180,8 +181,8 @@ def show_main_menu():
     print_menu_option(1, "🏗️ Construir Base de Conhecimento", 
                      "Processa seus arquivos .txt e cria o índice de busca")
     
-    print_menu_option(2, "💬 Iniciar Chat Interativo", 
-                     "Conversa com o chatbot usando a base criada")
+    print_menu_option(2, "💬 Chat Interativo Inteligente", 
+                     "Conversa inteligente com IA que guia quando necessário")
     
     print_menu_option(3, "📊 Verificar Status do Sistema", 
                      "Mostra informações sobre arquivos e configurações")
@@ -295,6 +296,60 @@ def build_knowledge_base():
     
     config = DEFAULT_CONFIG.copy()
     
+    # Verificar se já existe uma base de conhecimento
+    base_exists = (os.path.exists(config["index_path"]) and 
+                   os.path.exists(config["meta_path"]) and 
+                   os.path.exists(config["settings_path"]))
+    
+    if base_exists:
+        print(f"\n{Fore.YELLOW}⚠️ BASE DE CONHECIMENTO JÁ EXISTE!")
+        print(f"{Fore.CYAN}📊 Arquivos encontrados:")
+        print(f"  ✅ Índice FAISS: {config['index_path']}")
+        print(f"  ✅ Metadados: {config['meta_path']}")
+        print(f"  ✅ Configurações: {config['settings_path']}")
+        
+        # Mostrar informações da base atual
+        try:
+            with open(config["settings_path"], "r", encoding="utf-8") as f:
+                settings = json.load(f)
+            print(f"\n{Fore.CYAN}📋 Informações da base atual:")
+            print(f"  📄 Total de documentos: {settings.get('total_documents', 'N/A')}")
+            print(f"  📝 Total de chunks: {settings.get('total_chunks', 'N/A')}")
+            print(f"  📅 Criado em: {settings.get('created_at', 'N/A')}")
+            print(f"  🧠 Modelo: {settings.get('embedding_model', 'N/A')}")
+        except Exception as e:
+            print(f"{Fore.RED}❌ Erro ao ler configurações: {e}")
+        
+        print(f"\n{Fore.YELLOW}🔄 OPÇÕES DISPONÍVEIS:")
+        print(f"  1️⃣ Reconstruir base (substituir atual)")
+        print(f"  2️⃣ Manter base atual (cancelar)")
+        
+        rebuild_choice = get_user_choice(2)
+        
+        if rebuild_choice == 2:
+            print(f"\n{Fore.GREEN}✅ Operação cancelada. Base atual mantida.")
+            wait_for_enter()
+            return
+        
+        print(f"\n{Fore.YELLOW}🗑️ Removendo base antiga...")
+        try:
+            if os.path.exists(config["index_path"]):
+                os.remove(config["index_path"])
+                print(f"  ✅ Índice removido")
+            if os.path.exists(config["meta_path"]):
+                os.remove(config["meta_path"])
+                print(f"  ✅ Metadados removidos")
+            if os.path.exists(config["settings_path"]):
+                os.remove(config["settings_path"])
+                print(f"  ✅ Configurações removidas")
+        except Exception as e:
+            print(f"{Fore.RED}❌ Erro ao remover arquivos: {e}")
+            wait_for_enter()
+            return
+        
+        print(f"{Fore.GREEN}✅ Base anterior removida com sucesso!")
+        print(f"\n{Fore.GREEN}🏗️ RECONSTRUINDO BASE DE CONHECIMENTO...")
+    
     # Verificar se diretório data existe
     if not os.path.exists(config["docs_path"]):
         print(f"{Fore.RED}❌ Diretório 'data' não encontrado!")
@@ -337,6 +392,7 @@ def build_knowledge_base():
         for filepath, content in documents.items():
             print(f"  📝 Processando {os.path.basename(filepath)}...")
             file_chunks = chunk_text(content, config["chunk_size"], config["overlap"])
+            print(f"    📊 {len(content)} chars → {len(file_chunks)} chunks")
             
             start_char = 0
             for i, chunk in enumerate(file_chunks):
@@ -521,96 +577,315 @@ RESPOSTA:"""
     except Exception as e:
         return f"Erro ao gerar resposta: {str(e)}"
 
-def start_chat():
-    """Inicia o chat interativo"""
-    config = DEFAULT_CONFIG
+def print_colored(text: str, color: str = "white"):
+    """Imprime texto com cor específica"""
+    colors = {
+        "red": Fore.RED,
+        "green": Fore.GREEN,
+        "blue": Fore.BLUE,
+        "yellow": Fore.YELLOW,
+        "cyan": Fore.CYAN,
+        "magenta": Fore.MAGENTA,
+        "white": Fore.WHITE,
+        "gray": Fore.LIGHTBLACK_EX
+    }
+    print(f"{colors.get(color, Fore.WHITE)}{text}{Style.RESET_ALL}")
+
+def clear_screen():
+    """Limpa a tela do terminal"""
+    os.system('cls' if os.name == 'nt' else 'clear')
+
+def classify_query_intent(question: str) -> dict:
+    """Classifica a intenção da pergunta usando FLAN-T5"""
+    try:
+        config = DEFAULT_CONFIG
+        model_name = config["generation_model"]
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        model = AutoModelForSeq2SeqLM.from_pretrained(model_name).to(device)
+        
+        # Prompt para classificação de intenção
+        classification_prompt = f"""Analise esta pergunta e classifique em uma das categorias:
+CATEGORIAS: servicos, integracao, bi, automacao, ia, geral, saudacao, despedida, unclear
+
+Pergunta: "{question}"
+
+Categoria:"""
+        
+        inputs = tokenizer(classification_prompt, return_tensors="pt", max_length=512, truncation=True).to(device)
+        
+        with torch.no_grad():
+            outputs = model.generate(
+                **inputs,
+                max_length=50,
+                temperature=0.3,
+                do_sample=True,
+                pad_token_id=tokenizer.eos_token_id
+            )
+        
+        intent = tokenizer.decode(outputs[0], skip_special_tokens=True).strip().lower()
+        
+        # Mapear intenções para tópicos
+        intent_mapping = {
+            "servicos": "serviços oferecidos pela ICTA",
+            "integracao": "integrações com TOTVS",
+            "bi": "Business Intelligence e relatórios",
+            "automacao": "automação de processos",
+            "ia": "inteligência artificial",
+            "geral": "informações gerais da empresa",
+            "saudacao": "saudação",
+            "despedida": "despedida",
+            "unclear": "não está claro"
+        }
+        
+        return {
+            "intent": intent,
+            "topic": intent_mapping.get(intent, "informações gerais"),
+            "confidence": "high" if intent in intent_mapping else "low"
+        }
+        
+    except Exception as e:
+        print_colored(f"❌ Erro na classificação: {e}", "red")
+        return {"intent": "unclear", "topic": "informações gerais", "confidence": "low"}
+
+def generate_clarification_questions(intent_info: dict, original_question: str) -> str:
+    """Gera perguntas de esclarecimento usando FLAN-T5"""
+    try:
+        config = DEFAULT_CONFIG
+        model_name = config["generation_model"]
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        model = AutoModelForSeq2SeqLM.from_pretrained(model_name).to(device)
+        
+        # Prompt para gerar perguntas de esclarecimento
+        clarification_prompt = f"""Você é um assistente da ICTA Technology, empresa de consultoria em BI, automação e IA.
+
+A pergunta do usuário "{original_question}" não está clara sobre o tópico "{intent_info['topic']}".
+
+Faça 2-3 perguntas específicas para ajudar a entender melhor o que o usuário precisa sobre este tópico.
+
+Perguntas de esclarecimento:"""
+        
+        inputs = tokenizer(clarification_prompt, return_tensors="pt", max_length=512, truncation=True).to(device)
+        
+        with torch.no_grad():
+            outputs = model.generate(
+                **inputs,
+                max_length=200,
+                temperature=0.7,
+                do_sample=True,
+                pad_token_id=tokenizer.eos_token_id
+            )
+        
+        questions = tokenizer.decode(outputs[0], skip_special_tokens=True).strip()
+        return questions
+        
+    except Exception as e:
+        print_colored(f"❌ Erro na geração de perguntas: {e}", "red")
+        return "Pode me dar mais detalhes sobre o que você precisa?"
+
+def generate_guided_response(contexts: list, question: str, intent_info: dict) -> str:
+    """Gera resposta guiada com interação usando FLAN-T5"""
+    try:
+        config = DEFAULT_CONFIG
+        model_name = config["generation_model"]
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        model = AutoModelForSeq2SeqLM.from_pretrained(model_name).to(device)
+        
+        # Verifica se há contextos relevantes
+        if not contexts or all(ctx.score < 0.3 for ctx in contexts):
+            # Sem contextos relevantes - guiar o usuário
+            guidance_prompt = f"""Você é um assistente da ICTA Technology.
+
+O usuário perguntou: "{question}"
+Tópico identificado: {intent_info['topic']}
+
+Não encontrei informações específicas sobre isso. 
+
+Como assistente especializado em BI, automação e IA, ofereça ajuda alternativa:
+1. Sugira tópicos relacionados que podem interessar
+2. Faça perguntas para entender melhor a necessidade
+3. Ofereça opções de contato se necessário
+
+Resposta útil:"""
+        else:
+            # Com contextos - resposta normal melhorada
+            context_text = "\n".join([f"- {ctx.text[:200]}..." for ctx in contexts[:3]])
+            
+            guidance_prompt = f"""Você é um assistente especializado da ICTA Technology.
+
+Pergunta: {question}
+Contexto encontrado:
+{context_text}
+
+Com base no contexto, forneça uma resposta completa e útil. Se a informação não for suficiente, faça perguntas para ajudar melhor o usuário.
+
+Resposta:"""
+        
+        inputs = tokenizer(guidance_prompt, return_tensors="pt", max_length=512, truncation=True).to(device)
+        
+        with torch.no_grad():
+            outputs = model.generate(
+                **inputs,
+                max_length=300,
+                temperature=0.6,
+                do_sample=True,
+                repetition_penalty=1.2,
+                pad_token_id=tokenizer.eos_token_id
+            )
+        
+        response = tokenizer.decode(outputs[0], skip_special_tokens=True).strip()
+        return response
+        
+    except Exception as e:
+        print_colored(f"❌ Erro na geração de resposta: {e}", "red")
+        return "Desculpe, houve um erro. Pode reformular sua pergunta?"
+
+def suggest_related_topics(intent: str) -> list[str]:
+    """Sugere tópicos relacionados baseado na intenção"""
+    topic_suggestions = {
+        "servicos": [
+            "Quais são os principais serviços de BI?",
+            "Como funciona a automação de processos?",
+            "Que tipos de IA vocês implementam?"
+        ],
+        "integracao": [
+            "Quais módulos TOTVS vocês integram?",
+            "Como é feita a migração de dados?",
+            "Qual o tempo de implementação?"
+        ],
+        "bi": [
+            "Que ferramentas de BI vocês usam?",
+            "Como criar dashboards personalizados?",
+            "Quais relatórios estão disponíveis?"
+        ],
+        "automacao": [
+            "Que processos podem ser automatizados?",
+            "Qual o ROI da automação?",
+            "Como funciona a implementação?"
+        ],
+        "ia": [
+            "Que tipos de IA vocês desenvolvem?",
+            "Como a IA pode ajudar meu negócio?",
+            "Quais são os casos de uso mais comuns?"
+        ]
+    }
     
-    print(f"\n{Fore.GREEN}💬 CHAT INTERATIVO")
-    print(f"{Fore.GREEN}{'='*40}")
+    return topic_suggestions.get(intent, [
+        "Quais são os principais serviços da ICTA?",
+        "Como posso entrar em contato?",
+        "Que tipos de projetos vocês fazem?"
+    ])
+
+def interactive_chat():
+    """Chat interativo melhorado com guias inteligentes"""
+    print_colored("\n💬 CHAT INTERATIVO ICTA", "cyan")
+    print_colored("=" * 50, "cyan")
     
-    # Verificar se índice existe
-    if not os.path.exists(config["index_path"]) or not os.path.exists(config["meta_path"]):
-        print(f"{Fore.RED}❌ Base de conhecimento não encontrada!")
-        print(f"{Fore.YELLOW}💡 Execute primeiro a opção 1 (Construir Base de Conhecimento)")
+    # Verificar se há base de conhecimento
+    if not os.path.exists("./index/faiss.index"):
+        print_colored("❌ Base de conhecimento não encontrada!", "red")
+        print_colored("   Execute a opção 1 primeiro para construir a base.", "yellow")
         wait_for_enter()
         return
     
-    print(f"{Fore.CYAN}🤖 Chatbot ICTA pronto para conversar!")
-    print(f"{Fore.YELLOW}💡 Comandos especiais:")
-    print(f"   • Digite 'sair' ou 'exit' para encerrar")
-    print(f"   • Digite 'help' para ajuda")
-    print(f"   • Digite 'status' para ver últimas buscas")
-    print()
+    print_colored("🤖 Olá! Sou o assistente da ICTA Technology.", "green")
+    print_colored("💡 Posso ajudar com dúvidas sobre BI, automação e IA.", "blue")
+    print_colored("🔍 Se não souber responder, vou te guiar para encontrar o que precisa!", "blue")
+    print_colored("\n📝 Digite sua pergunta (ou 'sair' para encerrar):", "white")
     
     conversation_history = []
     
     while True:
-        try:
-            question = input(f"{Fore.CYAN}🧑 Você: {Style.RESET_ALL}").strip()
-            
-            if not question:
-                continue
-                
-            if question.lower() in ['sair', 'exit', 'quit']:
-                print(f"{Fore.YELLOW}👋 Encerrando chat. Até logo!")
-                break
-                
-            if question.lower() == 'help':
-                print(f"\n{Fore.BLUE}📖 AJUDA DO CHAT:")
-                print(f"• Faça perguntas sobre os documentos carregados")
-                print(f"• O sistema buscará as informações mais relevantes")
-                print(f"• Se não souber, será honesto sobre isso")
-                print(f"• Digite 'sair' para encerrar")
-                print()
-                continue
-                
-            if question.lower() == 'status':
-                if conversation_history:
-                    print(f"\n{Fore.BLUE}📊 ÚLTIMAS CONVERSAS:")
-                    for i, (q, a) in enumerate(conversation_history[-3:], 1):
-                        print(f"{i}. P: {q[:50]}...")
-                        print(f"   R: {a[:50]}...")
-                    print()
-                else:
-                    print(f"{Fore.YELLOW}Nenhuma conversa ainda.")
-                continue
-            
-            print(f"{Fore.BLUE}🔍 Buscando informações...")
-            
-            # Buscar contextos relevantes
-            contexts = search_index(question, config["index_path"], config["meta_path"], config["top_k"])
-            
-            if not contexts:
-                answer = "Desculpe, não encontrei informações relevantes para sua pergunta. Pode reformular ou entrar em contato conosco?"
-            else:
-                print(f"{Fore.BLUE}🧠 Gerando resposta...")
-                answer = generate_answer(contexts, question)
-            
-            print(f"\n{Fore.GREEN}🤖 Chatbot: {Style.RESET_ALL}{answer}\n")
-            
-            # Salvar na história
-            conversation_history.append((question, answer))
-            
-            # Salvar no arquivo de histórico
-            try:
-                os.makedirs(os.path.dirname(config["history_path"]), exist_ok=True)
-                with open(config["history_path"], "a", encoding="utf-8") as f:
-                    record = {
-                        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-                        "question": question,
-                        "answer": answer,
-                        "contexts_used": len(contexts)
-                    }
-                    f.write(json.dumps(record, ensure_ascii=False) + "\n")
-            except Exception as e:
-                print(f"{Fore.YELLOW}⚠️ Não foi possível salvar no histórico: {e}")
-            
-        except KeyboardInterrupt:
-            print(f"\n{Fore.YELLOW}👋 Chat interrompido. Voltando ao menu principal...")
+        print_colored("\n" + "─" * 50, "gray")
+        user_input = input(f"{Fore.YELLOW}👤 Você: {Style.RESET_ALL}").strip()
+        
+        if user_input.lower() in ['sair', 'exit', 'quit', 'bye']:
+            print_colored("👋 Obrigado por usar o assistente ICTA! Até logo!", "green")
             break
+        
+        if not user_input:
+            print_colored("❓ Por favor, digite uma pergunta.", "yellow")
+            continue
+        
+        # Salvar pergunta do usuário
+        conversation_history.append({"role": "user", "content": user_input})
+        
+        print_colored(f"\n🔍 Analisando sua pergunta...", "blue")
+        
+        # 1. Classificar intenção da pergunta
+        intent_info = classify_query_intent(user_input)
+        
+        # 2. Buscar no índice
+        try:
+            search_results = search_index(user_input, "./index/faiss.index", "./index/meta.jsonl", top_k=3)
         except Exception as e:
-            print(f"{Fore.RED}❌ Erro no chat: {e}")
-            print(f"{Fore.YELLOW}💡 Tente novamente ou volte ao menu principal")
+            print_colored(f"❌ Erro na busca: {e}", "red")
+            search_results = []
+        
+        # 3. Verificar qualidade dos resultados
+        has_good_results = search_results and any(result.score > 0.4 for result in search_results)
+        
+        if has_good_results:
+            # Resposta normal com contexto
+            print_colored(f"💡 Encontrei informações relevantes!", "green")
+            answer = generate_guided_response(search_results, user_input, intent_info)
+        else:
+            # Sem resultados bons - modo interativo
+            print_colored(f"🤔 Hmm, não encontrei uma resposta específica...", "yellow")
+            print_colored(f"📋 Identifiquei que você está perguntando sobre: {intent_info['topic']}", "blue")
+            
+            # Gerar resposta guiada
+            answer = generate_guided_response([], user_input, intent_info)
+            
+            # Adicionar sugestões de tópicos
+            suggestions = suggest_related_topics(intent_info['intent'])
+            if suggestions:
+                answer += f"\n\n💡 Você pode me perguntar sobre:\n"
+                for i, suggestion in enumerate(suggestions, 1):
+                    answer += f"   {i}. {suggestion}\n"
+        
+        # Exibir resposta
+        print_colored(f"\n🤖 ICTA Assistant:", "cyan")
+        print_colored(answer, "white")
+        
+        # Salvar resposta
+        conversation_history.append({"role": "assistant", "content": answer})
+        
+        # Perguntar se ajudou
+        print_colored(f"\n❓ Esta resposta foi útil? (s/n/mais)", "blue")
+        feedback = input(f"{Fore.YELLOW}📝 Feedback: {Style.RESET_ALL}").strip().lower()
+        
+        if feedback == 'n' or feedback == 'nao':
+            print_colored("🔄 Vou tentar ajudar de outra forma!", "blue")
+            clarification = generate_clarification_questions(intent_info, user_input)
+            print_colored(f"\n🎯 Para te ajudar melhor:", "cyan")
+            print_colored(clarification, "white")
+        elif feedback == 'mais':
+            print_colored("🔍 Pode fazer uma pergunta mais específica sobre o mesmo tópico!", "blue")
+    
+    # Salvar histórico
+    save_conversation_history(conversation_history)
+    wait_for_enter()
+
+def save_conversation_history(history: list):
+    """Salva o histórico da conversa"""
+    try:
+        os.makedirs("./history", exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        history_file = f"./history/chat_{timestamp}.json"
+        
+        with open(history_file, 'w', encoding='utf-8') as f:
+            json.dump(history, f, ensure_ascii=False, indent=2)
+        
+        print_colored(f"💾 Conversa salva em: {history_file}", "green")
+    except Exception as e:
+        print_colored(f"❌ Erro ao salvar histórico: {e}", "red")
+
+def start_chat():
+    """Inicia o chat interativo inteligente"""
+    interactive_chat()
 
 # ================================
 # Configurações

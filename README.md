@@ -1,27 +1,81 @@
-# RAG Chatbot ICTA Technology - Versão Simplificada 🤖✨
+# RAG Chatbot ICTA Technology - Chat Inteligente com IA 🤖🧠
 
 [![Python](https://img.shields.io/badge/Python-3.8+-blue.svg?logo=python)](https://python.org)
+[![FLAN-T5](https://img.shields.io/badge/Model-FLAN--T5-orange.svg)](https://huggingface.co/google/flan-t5-base)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![GitHub](https://img.shields.io/badge/GitHub-jesseff20%2Frag--chatbot-black.svg?logo=github)](https://github.com/jesseff20/rag-chatbot)
 [![ICTA Technology](https://img.shields.io/badge/ICTA-Technology-orange.svg)](https://ictatechnology.com)
 
-**Sistema RAG com Interface Totalmente Interativa - Agora Qualquer Pessoa Pode Usar!**
+**Sistema RAG com Chat Inteligente - IA que Conversa e Guia o Usuário!**
 
-> 🎉 **Nova Versão 2.0**: Interface completamente redesenhada com menus interativos coloridos. Não precisa mais decorar comandos - tudo é visual e autoexplicativo!
+> 🚀 **Nova Versão 3.0**: Chat Inteligente que usa FLAN-T5 para analisar intenções, gerar perguntas de esclarecimento e guiar o usuário quando não há resposta clara!
 
 ---
 
-## ✨ Por Que a Versão Simplificada é Melhor?
+## 🧠 **INOVAÇÃO: Chat Inteligente com IA**
 
-| 🔴 **Versão Antiga (CLI)** | 🟢 **Nova Versão (Interativa)** |
-|---------------------------|----------------------------------|
-| Comandos complexos na linha de comando | Menus coloridos e interativos |
-| Precisava decorar parâmetros | Explicações em cada opção |
-| Difícil para iniciantes | Qualquer pessoa consegue usar |
-| Erros sem explicação clara | Ajuda integrada e guias passo-a-passo |
-| Interface técnica | Interface amigável e visual |
+### 🎯 **Análise de Intenção Automática**
+O sistema usa **FLAN-T5** para entender o que você realmente quer:
+- 🏢 **Serviços**: Perguntas sobre BI, automação, IA
+- 🔗 **Integrações**: Questões sobre TOTVS e sistemas
+- 📊 **Business Intelligence**: Relatórios e dashboards
+- 🤖 **Automação**: Processos e otimização
+- 💬 **Conversação**: Saudações e despedidas
 
-## 🎯 Características da Nova Interface
+### 🤔 **Sistema de Resposta Inteligente**
+
+| Situação | Como o Sistema Reage |
+|----------|---------------------|
+| 📚 **Resposta Clara** | Responde normalmente com contexto |
+| ❓ **Resposta Incerta** | Faz perguntas para esclarecer |
+| 🔍 **Sem Resposta** | Sugere tópicos relacionados |
+| 💬 **Conversação** | Guia o usuário passo-a-passo |
+
+### 🎭 **Exemplo de Interação Inteligente**
+
+```
+👤 Você: "Preciso de ajuda com sistema"
+
+🔍 Analisando sua pergunta...
+🤔 Hmm, não encontrei uma resposta específica...
+📋 Identifiquei que você está perguntando sobre: integrações com TOTVS
+
+🤖 ICTA Assistant: 
+Vejo que você precisa de ajuda com sistemas! Como especialistas em 
+integração, posso te ajudar melhor se souber mais detalhes.
+
+Que tipo de sistema você está usando? É um ERP como TOTVS? 
+Você precisa de integração, migração de dados ou consultoria?
+
+💡 Você pode me perguntar sobre:
+   1. Quais módulos TOTVS vocês integram?
+   2. Como é feita a migração de dados?
+   3. Qual o tempo de implementação?
+
+❓ Esta resposta foi útil? (s/n/mais)
+📝 Feedback: n
+
+🔄 Vou tentar ajudar de outra forma!
+
+🎯 Para te ajudar melhor:
+Você poderia me dizer qual é o sistema atual que você usa? 
+Está enfrentando algum problema específico de integração?
+Precisa conectar com alguma plataforma em particular?
+```
+
+### 🔄 **Loop de Feedback Inteligente**
+- ✅ **Resposta útil**: Continua a conversa
+- ❌ **Não ajudou**: Gera novas perguntas 
+- ➕ **Quer mais**: Oferece informações adicionais
+
+### 💾 **Histórico Inteligente**
+- Salva conversas com timestamp
+- Mantém contexto durante a sessão
+- Permite análise posterior das interações
+
+---
+
+## ✨ **Características da Interface Interativa**
 
 ### 🎨 **Menus Coloridos e Intuitivos**
 - **Verde**: Sucesso e confirmações
@@ -36,17 +90,6 @@
 - **Solução de problemas**: Erros comuns e como resolver
 - **Dicas avançadas**: Como obter melhores resultados
 - **Sobre o projeto**: Informações técnicas detalhadas
-
-### 🔍 **Status em Tempo Real**
-- Verifica automaticamente se tudo está funcionando
-- Mostra quantos documentos foram carregados
-- Informa o status do índice de busca
-- Dá recomendações personalizadas
-
-### ⚙️ **Configurações Visuais**
-- Veja todas as configurações atuais
-- Entenda o que cada parâmetro faz
-- Dicas para otimizar performance
 
 ## 🚀 Menu Principal - Super Simples!
 

@@ -1,0 +1,109 @@
+ICTA Technology — Serviços de BI, Automação e IA (Expandido)
+    ============================================================
+
+    Visão Geral
+    -----------
+    A ICTA Technology oferece serviços especializados em Business Intelligence, automação de processos
+    e soluções de inteligência artificial voltadas para empresas que desejam transformar dados em decisões,
+    reduzir custos e ganhar eficiência operacional.
+
+    Serviços de BI (Business Intelligence)
+    --------------------------------------
+    • Arquitetura de BI completa: desde a modelagem de dados até a entrega de dashboards executivos.
+    • Governança de dados: implementação de boas práticas, catálogos e segurança de acesso.
+    • Dashboards em Power BI, Tableau e MicroStrategy, com KPIs estratégicos e operacionais.
+    • Estratégia de licenciamento otimizado para reduzir custos de ferramentas de BI.
+    • ETL/ELT com Python, SQL e ferramentas open-source para integração de múltiplas fontes de dados.
+    • Implementação de Data Lakes e Data Fabric para consolidar dados de diferentes áreas.
+
+    Benefícios Típicos do BI
+    ------------------------
+    • Redução de tempo de consolidação de relatórios (horas para minutos).
+    • Tomada de decisão mais ágil com informações em tempo quase real.
+    • Diminuição de custos com licenciamento e infraestrutura.
+    • Maior adoção interna por equipes com dashboards acessíveis e intuitivos.
+
+    Serviços de Automação
+    ---------------------
+    • Robotic Process Automation (RPA) para eliminar tarefas repetitivas.
+    • Integrações automáticas entre ERP (como TOTVS) e sistemas financeiros, bancários e de vendas.
+    • Pipelines de dados agendados e monitorados, garantindo atualização constante.
+    • Automação de cadastros e conciliações contábeis.
+    • Redução média de 15–25% da carga de trabalho operacional com automações inteligentes.
+
+    Benefícios Típicos da Automação
+    -------------------------------
+    • Aumento de produtividade das equipes.
+
+    • Redução de erros humanos em processos críticos.
+
+    • Liberação de tempo para atividades estratégicas.
+
+    • Maior padronização nos fluxos de trabalho.
+
+    Serviços de Inteligência Artificial
+    -----------------------------------
+    • Desenvolvimento de chatbots baseados em RAG (Retrieval-Augmented Generation), locais ou híbridos.
+
+    • Modelos preditivos de churn, propensão de compra e análise de risco.
+
+    • Processamento de linguagem natural para FAQs e atendimento.
+
+    • Modelos de recomendação e análise de séries temporais.
+
+    • Implementação de soluções open-source (Flan-T5, Mistral, etc.) para reduzir dependência de APIs pagas.
+
+    Benefícios Típicos de IA
+    ------------------------
+    • Atendimento mais rápido e preciso a clientes e colaboradores.
+
+    • Antecipação de problemas (ex.: evasão de clientes, falhas em processos).
+
+    • Geração de insights estratégicos em áreas de vendas, marketing e operações.
+
+    • Maior competitividade ao adotar inovação de forma prática e acessível.
+
+    Metodologia de Entrega
+    ----------------------
+    1. Diagnóstico inicial: reuniões para mapear processos, dores e objetivos.
+
+    2. Prova de Conceito (PoC): entrega rápida de valor em até 4 semanas.
+
+    3. Implementação por fases: financeiro, vendas, operações, RH.
+
+    4. Treinamento e adoção: capacitação de usuários-chave e workshops.
+
+    5. Evolução contínua: suporte, manutenção e novos relatórios/modelos.
+
+    Setores Atendidos
+    -----------------
+
+    • Educação: relatórios acadêmicos, dashboards de gestão e redução de custos.
+
+    • Indústria: painéis de produção, logística e integração de estoque.
+
+    • Varejo: análises de vendas, comportamento de clientes e inventário.
+
+    • Serviços financeiros: relatórios de risco, compliance e auditoria.
+
+    Diferenciais da ICTA
+    --------------------
+
+    • Combinação de expertise em BI, automação e IA.
+
+    • Equipe enxuta com alta especialização.
+
+    • Capacidade de entregar valor rápido com soluções open-source.
+
+    • Foco em ROI mensurável e redução de custos.
+
+    Casos de Uso Reais
+    ------------------
+
+    • Cliente de educação: redução de 30% em custos de licenciamento de BI.
+
+    • Cliente industrial: integração TOTVS + Power BI, reduzindo fechamento de dados de 5 dias para 1 dia.
+
+    • Cliente de varejo: automação de conciliações, liberando 20% da capacidade da equipe financeira.
+
+    • Cliente de serviços: chatbot interno com RAG, reduzindo chamados em 40%.

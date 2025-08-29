@@ -96,5 +96,4 @@ models/
 Thumbs.db
 
 # Dados sensíveis (mantenha exemplos apenas)
-data/*.txt
 !data/exemplo_*.txt
