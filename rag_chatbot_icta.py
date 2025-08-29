@@ -1,68 +1,53 @@
+#!/usr/bin/env python3
+"""
+RAG Chatbot ICTA Technology - Versão Simplificada com Menus Interativos
+Sistema amigável para criação de chatbot FAQ
+
+Autor: Jesse Fernandes - ICTA Technology
+GitHub: https://github.com/jesseff20/rag-chatbot
+"""
 
 from __future__ import annotations
 import os
 import json
-import argparse
+import sys
 import time
 from dataclasses import dataclass
-from typing import List, Dict, Any, Optional, Tuple
+from typing import Any
 
+# Imports principais
 import faiss  # type: ignore
 import numpy as np
 from tqdm import tqdm
-from colorama import Fore, Style
-
-# Embeddings
+from colorama import Fore, Style, init
 from sentence_transformers import SentenceTransformer
-
-# Geração local (FLAN-T5)
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 import torch
 
-# (Opcional) Cliente simples para TGI (Text Generation Inference)
-import requests
-
+# Inicializar colorama para Windows
+init(autoreset=True)
 
 # ================================
-# Utilitários
+# Configurações Padrão
 # ================================
 
-def read_text_files(folder: str) -> Dict[str, str]:
-    """Lê todos os .txt do diretório e devolve {filepath: content}.
-    Ignora arquivos vazios.
-    """
-    data: Dict[str, str] = {}
-    for root, _, files in os.walk(folder):
-        for f in files:
-            if f.lower().endswith(".txt"):
-                fp = os.path.join(root, f)
-                try:
-                    with open(fp, "r", encoding="utf-8") as fh:
-                        content = fh.read().strip()
-                    if content:
-                        data[fp] = content
-                except Exception as e:
-                    print(f"[WARN] Falha ao ler {fp}: {e}")
-    return data
+DEFAULT_CONFIG = {
+    "docs_path": "./data",
+    "index_path": "./index/faiss.index",
+    "meta_path": "./index/meta.jsonl",
+    "settings_path": "./index/settings.json",
+    "history_path": "./history/chat_history.jsonl",
+    "chunk_size": 800,
+    "overlap": 120,
+    "top_k": 3,
+    "max_tokens": 150,
+    "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
+    "generation_model": "google/flan-t5-base"
+}
 
-
-def chunk_text(text: str, chunk_size: int = 800, overlap: int = 120) -> List[str]:
-    """Quebra texto em janelas de caracteres com sobreposição simples.
-    Simples e suficiente para FAQs curtas.
-    """
-    chunks = []
-    start = 0
-    n = len(text)
-    while start < n:
-        end = min(start + chunk_size, n)
-        chunks.append(text[start:end])
-        if end == n:
-            break
-        start = end - overlap
-        if start < 0:
-            start = 0
-    return chunks
-
+# ================================
+# Classes de Dados
+# ================================
 
 @dataclass
 class Metadata:
@@ -71,403 +56,827 @@ class Metadata:
     start_char: int
     end_char: int
 
-
 @dataclass
 class Retrieved:
     text: str
     meta: Metadata
     score: float
 
+# ================================
+# Utilitários de Interface
+# ================================
+
+def print_header():
+    """Imprime cabeçalho do programa"""
+    print(f"\n{Fore.CYAN}{'='*60}")
+    print(f"{Fore.CYAN}🤖 RAG Chatbot ICTA Technology - Versão Simplificada")
+    print(f"{Fore.CYAN}{'='*60}")
+    print(f"{Fore.GREEN}Sistema interativo para criação de chatbot FAQ")
+    print(f"{Fore.GREEN}GitHub: https://github.com/jesseff20/rag-chatbot")
+    print(f"{Fore.CYAN}{'='*60}{Style.RESET_ALL}\n")
+
+def print_menu_option(number: int, title: str, description: str):
+    """Imprime uma opção do menu formatada"""
+    print(f"{Fore.YELLOW}{number:2}. {Fore.WHITE}{title}")
+    print(f"    {Fore.LIGHTBLACK_EX}{description}{Style.RESET_ALL}")
+
+def get_user_choice(max_option: int) -> int:
+    """Obtém escolha do usuário com validação"""
+    while True:
+        try:
+            choice = input(f"\n{Fore.CYAN}🎯 Escolha uma opção (1-{max_option}): {Style.RESET_ALL}")
+            choice_num = int(choice)
+            if 1 <= choice_num <= max_option:
+                return choice_num
+            else:
+                print(f"{Fore.RED}❌ Por favor, escolha um número entre 1 e {max_option}")
+        except ValueError:
+            print(f"{Fore.RED}❌ Por favor, digite um número válido")
+        except KeyboardInterrupt:
+            print(f"\n{Fore.YELLOW}👋 Saindo do programa...")
+            sys.exit(0)
+
+def confirm_action(message: str) -> bool:
+    """Confirma uma ação com o usuário"""
+    while True:
+        response = input(f"{Fore.YELLOW}❓ {message} (s/n): {Style.RESET_ALL}").lower().strip()
+        if response in ['s', 'sim', 'y', 'yes']:
+            return True
+        elif response in ['n', 'nao', 'não', 'no']:
+            return False
+        else:
+            print(f"{Fore.RED}❌ Digite 's' para sim ou 'n' para não")
+
+def wait_for_enter():
+    """Espera o usuário pressionar Enter"""
+    _ = input(f"\n{Fore.LIGHTBLACK_EX}📝 Pressione Enter para continuar...{Style.RESET_ALL}")
 
 # ================================
-# Indexação (FAISS + SentenceTransformer)
+# Utilitários de Processamento
 # ================================
 
-def build_faiss_index(docs_folder: str, index_path: str, meta_path: str,
-                      embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2",
-                      chunk_size: int = 800, overlap: int = 120) -> None:
-    print(Fore.CYAN + "[1/3] Lendo .txt do corpus..." + Style.RESET_ALL)
-    raw_docs = read_text_files(docs_folder)
-    if not raw_docs:
-        raise SystemExit("Nenhum .txt encontrado em " + docs_folder)
+def read_text_files(folder: str) -> dict[str, str]:
+    """Lê todos os .txt do diretório"""
+    print(f"{Fore.BLUE}📂 Lendo arquivos .txt de: {folder}")
+    
+    if not os.path.exists(folder):
+        print(f"{Fore.RED}❌ Diretório não encontrado: {folder}")
+        return {}
+    
+    data: dict[str, str] = {}
+    txt_files = []
+    
+    for root, _, files in os.walk(folder):
+        for f in files:
+            if f.lower().endswith(".txt"):
+                txt_files.append(os.path.join(root, f))
+    
+    if not txt_files:
+        print(f"{Fore.YELLOW}⚠️ Nenhum arquivo .txt encontrado em {folder}")
+        return {}
+    
+    print(f"{Fore.GREEN}📄 Encontrados {len(txt_files)} arquivos .txt")
+    
+    for fp in tqdm(txt_files, desc="Lendo arquivos"):
+        try:
+            with open(fp, "r", encoding="utf-8") as fh:
+                content = fh.read().strip()
+            if content:
+                data[fp] = content
+                print(f"{Fore.GREEN}  ✅ {os.path.basename(fp)} ({len(content)} caracteres)")
+            else:
+                print(f"{Fore.YELLOW}  ⚠️ {os.path.basename(fp)} está vazio")
+        except Exception as e:
+            print(f"{Fore.RED}  ❌ Erro ao ler {os.path.basename(fp)}: {e}")
+    
+    return data
 
-    print(Fore.CYAN + "[2/3] Quebrando em chunks..." + Style.RESET_ALL)
-    chunks: List[str] = []
-    metadatas: List[Metadata] = []
-    for path, content in raw_docs.items():
-        offs = 0
-        local_chunks = chunk_text(content, chunk_size=chunk_size, overlap=overlap)
-        for i, ch in enumerate(local_chunks):
-            start_char = offs
-            end_char = offs + len(ch)
-            chunks.append(ch)
-            metadatas.append(Metadata(source=path, chunk_id=i, start_char=start_char, end_char=end_char))
-            offs += len(ch) - overlap if (i < len(local_chunks) - 1) else len(ch)
+def chunk_text(text: str, chunk_size: int = 800, overlap: int = 120) -> list[str]:
+    """Quebra texto em chunks com sobreposição"""
+    chunks = []
+    start = 0
+    n = len(text)
+    
+    while start < n:
+        end = min(start + chunk_size, n)
+        chunks.append(text[start:end])
+        if end == n:
+            break
+        start = end - overlap
+        if start < 0:
+            start = 0
+    
+    return chunks
 
-    print(Fore.CYAN + "[3/3] Gerando embeddings e gravando índice FAISS..." + Style.RESET_ALL)
-    encoder = SentenceTransformer(embedding_model)
-    emb = encoder.encode(chunks, batch_size=64, show_progress_bar=True, convert_to_numpy=True, normalize_embeddings=True)
+# ================================
+# Menu Principal
+# ================================
 
-    d = emb.shape[1]
-    index = faiss.IndexFlatIP(d)  # Inner Product (com vetores normalizados ~ cos similarity)
-    index.add(emb)
+def show_main_menu():
+    """Exibe o menu principal"""
+    print(f"\n{Fore.CYAN}📋 MENU PRINCIPAL")
+    print(f"{Fore.CYAN}{'='*50}")
+    
+    print_menu_option(1, "🏗️ Construir Base de Conhecimento", 
+                     "Processa seus arquivos .txt e cria o índice de busca")
+    
+    print_menu_option(2, "💬 Iniciar Chat Interativo", 
+                     "Conversa com o chatbot usando a base criada")
+    
+    print_menu_option(3, "📊 Verificar Status do Sistema", 
+                     "Mostra informações sobre arquivos e configurações")
+    
+    print_menu_option(4, "⚙️ Configurações", 
+                     "Ajustar parâmetros básicos do sistema")
+    
+    print_menu_option(5, "📚 Ajuda", 
+                     "Guias, exemplos e solução de problemas")
+    
+    print_menu_option(6, "🚪 Sair", 
+                     "Encerra o programa")
 
-    os.makedirs(os.path.dirname(index_path), exist_ok=True)
-    faiss.write_index(index, index_path)
+# ================================
+# Sistema de Status
+# ================================
 
-    # salvar metadados e settings
-    os.makedirs(os.path.dirname(meta_path), exist_ok=True)
-    with open(meta_path, "w", encoding="utf-8") as f:
-        for ch, m in zip(chunks, metadatas):
-            rec = {
-                "text": ch,
-                "source": m.source,
-                "chunk_id": m.chunk_id,
-                "start_char": m.start_char,
-                "end_char": m.end_char,
-            }
-            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+def check_system_status():
+    """Verifica e mostra status do sistema"""
+    print(f"\n{Fore.GREEN}📊 STATUS DO SISTEMA")
+    print(f"{Fore.GREEN}{'='*40}")
+    
+    config = DEFAULT_CONFIG
+    
+    # Verificar diretórios
+    print(f"\n{Fore.CYAN}📁 Diretórios:")
+    dirs_to_check = [
+        ("Data (documentos)", config["docs_path"]),
+        ("Index (índices)", os.path.dirname(config["index_path"])),
+        ("History (histórico)", os.path.dirname(config["history_path"]))
+    ]
+    
+    for name, path in dirs_to_check:
+        if os.path.exists(path):
+            print(f"  ✅ {name}: {path}")
+        else:
+            print(f"  ❌ {name}: {path} (não encontrado)")
+    
+    # Verificar arquivos de dados
+    print(f"\n{Fore.CYAN}📄 Arquivos de dados:")
+    if os.path.exists(config["docs_path"]):
+        txt_files = [f for f in os.listdir(config["docs_path"]) if f.endswith('.txt')]
+        if txt_files:
+            print(f"  ✅ {len(txt_files)} arquivos .txt encontrados:")
+            for f in txt_files[:5]:  # Mostrar apenas os primeiros 5
+                print(f"    📝 {f}")
+            if len(txt_files) > 5:
+                print(f"    ... e mais {len(txt_files) - 5} arquivos")
+        else:
+            print(f"  ⚠️ Nenhum arquivo .txt encontrado em {config['docs_path']}")
+    else:
+        print(f"  ❌ Diretório {config['docs_path']} não existe")
+    
+    # Verificar índice
+    print(f"\n{Fore.CYAN}🔍 Índice de busca:")
+    if os.path.exists(config["index_path"]):
+        print(f"  ✅ Índice FAISS: {config['index_path']}")
+        try:
+            index = faiss.read_index(config["index_path"])
+            print(f"  📊 Vetores no índice: {index.ntotal}")
+        except Exception as e:
+            print(f"  ⚠️ Erro ao ler índice: {e}")
+    else:
+        print(f"  ❌ Índice não encontrado: {config['index_path']}")
+    
+    if os.path.exists(config["meta_path"]):
+        print(f"  ✅ Metadados: {config['meta_path']}")
+        try:
+            with open(config["meta_path"], 'r', encoding='utf-8') as f:
+                lines = sum(1 for _ in f)
+            print(f"  📊 Chunks de texto: {lines}")
+        except Exception as e:
+            print(f"  ⚠️ Erro ao ler metadados: {e}")
+    else:
+        print(f"  ❌ Metadados não encontrados: {config['meta_path']}")
+    
+    # Verificar configurações
+    print(f"\n{Fore.CYAN}⚙️ Configurações:")
+    if os.path.exists(config["settings_path"]):
+        print(f"  ✅ Arquivo de configurações existe")
+        try:
+            with open(config["settings_path"], 'r', encoding='utf-8') as f:
+                settings = json.load(f)
+            print(f"  📊 Modelo de embeddings: {settings.get('embedding_model', 'N/A')}")
+            print(f"  📊 Dimensão: {settings.get('dimension', 'N/A')}")
+            print(f"  📊 Criado em: {settings.get('created_at', 'N/A')}")
+        except Exception as e:
+            print(f"  ⚠️ Erro ao ler configurações: {e}")
+    else:
+        print(f"  ⚠️ Usando configurações padrão")
+    
+    # Recomendações
+    print(f"\n{Fore.YELLOW}💡 Recomendações:")
+    if not os.path.exists(config["docs_path"]):
+        print("  • Crie o diretório 'data' e adicione arquivos .txt")
+    elif not os.path.exists(config["index_path"]):
+        print("  • Execute 'Construir Base de Conhecimento' (opção 1)")
+    else:
+        print("  • Sistema pronto! Use 'Iniciar Chat' (opção 2)")
+    
+    wait_for_enter()
 
-    settings = {
-        "embedding_model": embedding_model,
-        "dimension": int(d),
-        "built_at": int(time.time()),
-        "docs_path": os.path.abspath(docs_folder),
-        "chunk_size": chunk_size,
-        "overlap": overlap,
-    }
-    with open(os.path.join(os.path.dirname(index_path), "settings.json"), "w", encoding="utf-8") as f:
-        json.dump(settings, f, ensure_ascii=False, indent=2)
+# ================================
+# Construção de Base de Conhecimento
+# ================================
 
-    print(Fore.GREEN + f"OK: index salvo em {index_path}, meta em {meta_path}" + Style.RESET_ALL)
+def build_knowledge_base():
+    """Constrói a base de conhecimento de forma interativa"""
+    print(f"\n{Fore.GREEN}🏗️ CONSTRUINDO BASE DE CONHECIMENTO")
+    print(f"{Fore.GREEN}{'='*50}")
+    
+    config = DEFAULT_CONFIG.copy()
+    
+    # Verificar se diretório data existe
+    if not os.path.exists(config["docs_path"]):
+        print(f"{Fore.RED}❌ Diretório 'data' não encontrado!")
+        if confirm_action("Deseja criar o diretório 'data'?"):
+            os.makedirs(config["docs_path"], exist_ok=True)
+            print(f"{Fore.GREEN}✅ Diretório 'data' criado!")
+            print(f"{Fore.YELLOW}💡 Adicione seus arquivos .txt em '{config['docs_path']}' e tente novamente")
+            wait_for_enter()
+            return
+        else:
+            return
+    
+    # Ler arquivos
+    documents = read_text_files(config["docs_path"])
+    if not documents:
+        print(f"{Fore.RED}❌ Nenhum arquivo .txt encontrado ou todos estão vazios!")
+        print(f"{Fore.YELLOW}💡 Adicione arquivos .txt em '{config['docs_path']}' e tente novamente")
+        wait_for_enter()
+        return
+    
+    print(f"\n{Fore.CYAN}📊 RESUMO DOS ARQUIVOS:")
+    total_chars = 0
+    for filepath, content in documents.items():
+        filename = os.path.basename(filepath)
+        char_count = len(content)
+        total_chars += char_count
+        print(f"  📄 {filename}: {char_count:,} caracteres")
+    
+    print(f"\n{Fore.GREEN}✅ Total: {len(documents)} arquivos, {total_chars:,} caracteres")
+    
+    if not confirm_action("Continuar com a construção do índice?"):
+        return
+    
+    try:
+        # Criar chunks
+        print(f"\n{Fore.BLUE}📝 Dividindo textos em chunks...")
+        chunks: list[str] = []
+        metadatas: list[Metadata] = []
+        
+        for filepath, content in documents.items():
+            print(f"  📝 Processando {os.path.basename(filepath)}...")
+            file_chunks = chunk_text(content, config["chunk_size"], config["overlap"])
+            
+            start_char = 0
+            for i, chunk in enumerate(file_chunks):
+                chunks.append(chunk)
+                end_char = start_char + len(chunk)
+                metadatas.append(Metadata(
+                    source=filepath,
+                    chunk_id=i,
+                    start_char=start_char,
+                    end_char=end_char
+                ))
+                start_char = end_char - config["overlap"]
+        
+        print(f"{Fore.GREEN}✅ Criados {len(chunks)} chunks")
+        
+        # Criar embeddings
+        print(f"\n{Fore.BLUE}🧠 Carregando modelo de embeddings...")
+        print(f"  📦 Modelo: {config['embedding_model']}")
+        model = SentenceTransformer(config["embedding_model"])
+        
+        print(f"{Fore.BLUE}🔄 Gerando embeddings...")
+        embeddings = []
+        batch_size = 32
+        
+        for i in tqdm(range(0, len(chunks), batch_size), desc="Processando chunks"):
+            batch = chunks[i:i+batch_size]
+            batch_embeddings = model.encode(batch, show_progress_bar=False)
+            embeddings.extend(batch_embeddings)
+        
+        embeddings_array = np.array(embeddings).astype('float32')
+        print(f"{Fore.GREEN}✅ Embeddings criados: {embeddings_array.shape}")
+        
+        # Criar índice FAISS
+        print(f"\n{Fore.BLUE}🔍 Construindo índice FAISS...")
+        dimension = embeddings_array.shape[1]
+        index = faiss.IndexFlatIP(dimension)  # Inner Product (cosine similarity)
+        
+        # Normalizar embeddings para cosine similarity
+        faiss.normalize_L2(embeddings_array)
+        index.add(embeddings_array)
+        
+        print(f"{Fore.GREEN}✅ Índice construído com {index.ntotal} vetores")
+        
+        # Criar diretórios de saída
+        os.makedirs(os.path.dirname(config["index_path"]), exist_ok=True)
+        
+        # Salvar índice
+        print(f"\n{Fore.BLUE}💾 Salvando arquivos...")
+        faiss.write_index(index, config["index_path"])
+        print(f"✅ Índice salvo em: {config['index_path']}")
+        
+        # Salvar metadados
+        with open(config["meta_path"], "w", encoding="utf-8") as f:
+            for i, (chunk, meta) in enumerate(zip(chunks, metadatas)):
+                data = {
+                    "chunk_id": i,
+                    "text": chunk,
+                    "source": meta.source,
+                    "start_char": meta.start_char,
+                    "end_char": meta.end_char
+                }
+                f.write(json.dumps(data, ensure_ascii=False) + "\n")
+        print(f"✅ Metadados salvos em: {config['meta_path']}")
+        
+        # Salvar configurações
+        settings = {
+            "embedding_model": config["embedding_model"],
+            "chunk_size": config["chunk_size"],
+            "overlap": config["overlap"],
+            "dimension": dimension,
+            "total_chunks": len(chunks),
+            "total_documents": len(documents),
+            "created_at": time.strftime("%Y-%m-%d %H:%M:%S")
+        }
+        
+        with open(config["settings_path"], "w", encoding="utf-8") as f:
+            json.dump(settings, f, indent=2, ensure_ascii=False)
+        print(f"✅ Configurações salvas em: {config['settings_path']}")
+        
+        print(f"\n{Fore.GREEN}🎉 BASE DE CONHECIMENTO CRIADA COM SUCESSO!")
+        print(f"{Fore.GREEN}{'='*50}")
+        print(f"{Fore.CYAN}📊 Estatísticas:")
+        print(f"  📄 Documentos processados: {len(documents)}")
+        print(f"  📝 Chunks criados: {len(chunks)}")
+        print(f"  🧠 Dimensão dos embeddings: {dimension}")
+        print(f"  💾 Tamanho do índice: {index.ntotal} vetores")
+        print(f"\n{Fore.YELLOW}💡 Agora você pode usar a opção 2 para conversar com o chatbot!")
+        
+    except Exception as e:
+        print(f"\n{Fore.RED}❌ Erro durante a construção da base:")
+        print(f"{Fore.RED}   {str(e)}")
+        print(f"\n{Fore.YELLOW}💡 Tente novamente ou consulte a ajuda (opção 5)")
+    
+    wait_for_enter()
 
+# ================================
+# Chat Interativo
+# ================================
 
-def load_meta(meta_path: str) -> List[Dict[str, Any]]:
+def load_meta(meta_path: str) -> list[dict[str, Any]]:
+    """Carrega metadados do arquivo JSONL"""
     items = []
     with open(meta_path, "r", encoding="utf-8") as f:
         for line in f:
             items.append(json.loads(line))
     return items
 
-
-def search_index(query: str, index_path: str, meta_path: str,
-                 embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2",
-                 top_k: int = 5) -> List[Retrieved]:
+def search_index(query: str, index_path: str, meta_path: str, top_k: int = 3) -> list[Retrieved]:
+    """Busca no índice FAISS"""
+    config = DEFAULT_CONFIG
+    
+    # Carregar índice e metadados
     index = faiss.read_index(index_path)
     meta = load_meta(meta_path)
-
-    encoder = SentenceTransformer(embedding_model)
-    q = encoder.encode([query], convert_to_numpy=True, normalize_embeddings=True)
-
-    scores, idxs = index.search(q, top_k)
-    idxs = idxs[0]
+    
+    # Criar embedding da query
+    model = SentenceTransformer(config["embedding_model"])
+    query_embedding = model.encode([query], convert_to_numpy=True, normalize_embeddings=True)
+    
+    # Buscar
+    scores, indices = index.search(query_embedding, top_k)
+    indices = indices[0]
     scores = scores[0]
-
-    results: List[Retrieved] = []
-    for i, s in zip(idxs, scores):
+    
+    # Montar resultados
+    results: list[Retrieved] = []
+    for i, score in zip(indices, scores):
         if i == -1:
             continue
         rec = meta[i]
-        m = Metadata(source=rec["source"], chunk_id=rec["chunk_id"], start_char=rec["start_char"], end_char=rec["end_char"])
-        results.append(Retrieved(text=rec["text"], meta=m, score=float(s)))
+        metadata = Metadata(
+            source=rec["source"],
+            chunk_id=rec["chunk_id"],
+            start_char=rec["start_char"],
+            end_char=rec["end_char"]
+        )
+        results.append(Retrieved(text=rec["text"], meta=metadata, score=float(score)))
+    
     return results
 
-
-# ================================
-# Geradores
-# ================================
-
-class FlanT5Generator:
-    def __init__(self, model_name: str = "google/flan-t5-base", device: Optional[str] = None):
-        self.model_name = model_name
-        self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name).to(self.device)
-
-    def generate(self, prompt: str, max_new_tokens: int = 256, temperature: float = 0.2, top_p: float = 0.9) -> str:
-        inputs = self.tokenizer(prompt, return_tensors="pt", truncation=True).to(self.device)
-        with torch.no_grad():
-            output_ids = self.model.generate(
-                **inputs,
-                max_new_tokens=max_new_tokens,
-                do_sample=temperature > 0,
-                temperature=temperature,
-                top_p=top_p,
-            )
-        return self.tokenizer.decode(output_ids[0], skip_special_tokens=True)
-
-
-class TGIClientGenerator:
-    """Cliente mínimo para Text Generation Inference (Hugging Face), endpoint /generate.
-    Execute um servidor TGI local ou remoto (ex.: docker run ... ghcr.io/huggingface/text-generation-inference:latest \
-        --model-id mistralai/Mistral-7B-Instruct-v0.3)
-    """
-    def __init__(self, base_url: str):
-        self.base_url = base_url.rstrip("/")
-
-    def generate(self, prompt: str, max_new_tokens: int = 256, temperature: float = 0.2, top_p: float = 0.9) -> str:
-        url = f"{self.base_url}/generate"
-        payload = {
-            "inputs": prompt,
-            "parameters": {
-                "max_new_tokens": max_new_tokens,
-                "temperature": temperature,
-                "top_p": top_p,
-                "do_sample": temperature > 0,
-                "return_full_text": False,
-            },
-        }
-        r = requests.post(url, json=payload, timeout=120)
-        r.raise_for_status()
-        data = r.json()
-        # Resposta típica: {"generated_text": "..."} ou lista
-        if isinstance(data, dict) and "generated_text" in data:
-            return data["generated_text"].strip()
-        if isinstance(data, list) and data and "generated_text" in data[0]:
-            return data[0]["generated_text"].strip()
-        return str(data)
-
-
-# ================================
-# RAG: montar prompt + fluxo pergunta -> recuperação -> geração
-# ================================
-
-def build_prompt(contexts: List[Retrieved], question: str, system_language: str = "pt") -> str:
-    """Prompt simples instruindo o modelo a responder apenas com base no contexto."""
-    lang_line = {
-        "pt": (
-            "Você é um assistente da ICTA Technology que responde APENAS com base no CONTEXTO abaixo. "
-            "Se a resposta não estiver no contexto, diga educadamente que não sabe e sugira falar com um humano.\n"),
-        "en": (
-            "You are an ICTA Technology assistant. Answer ONLY using the CONTEXT below. "
-            "If the answer is not in the context, say you don't know and suggest contacting a human.\n"),
-    }.get(system_language, "pt")
-
-    header = f"[INSTRUÇÕES]\n{lang_line}\n"
-    ctx = "\n\n".join([f"[TRECHO {i+1} | score={c.score:.3f} | fonte={os.path.basename(c.meta.source)}]\n{c.text}" for i, c in enumerate(contexts)])
-    q_line = f"\n\n[PERGUNTA]\n{question}\n\n[RESPOSTA]"
-    return header + "[CONTEXTO]\n" + ctx + q_line
-
-
-def answer_question(query: str, index_path: str, meta_path: str,
-                    generator_type: str = "flan-t5",
-                    model_name: str = "google/flan-t5-base",
-                    tgi_url: Optional[str] = None,
-                    top_k: int = 5,
-                    max_new_tokens: int = 256,
-                    system_language: str = "pt") -> Tuple[str, List[Retrieved]]:
-    # Recuperação
-    hits = search_index(query, index_path, meta_path, top_k=top_k)
-
+def generate_answer(contexts: list[Retrieved], question: str) -> str:
+    """Gera resposta usando FLAN-T5"""
+    config = DEFAULT_CONFIG
+    
     # Montar prompt
-    prompt = build_prompt(hits, query, system_language=system_language)
+    context_text = "\n\n".join([
+        f"[DOCUMENTO {i+1}]\n{ctx.text}" 
+        for i, ctx in enumerate(contexts)
+    ])
+    
+    prompt = f"""Você é um assistente da ICTA Technology. Responda APENAS com base no contexto fornecido. Se a resposta não estiver no contexto, diga que não sabe e sugira contato com um humano.
 
-    # Geração
-    if generator_type == "flan-t5":
-        gen = FlanT5Generator(model_name=model_name)
-        out = gen.generate(prompt, max_new_tokens=max_new_tokens)
-    elif generator_type == "tgi":
-        if not tgi_url:
-            raise ValueError("Para generator=tgi, especifique --tgi-url (ex.: http://localhost:8080)")
-        gen = TGIClientGenerator(tgi_url)
-        out = gen.generate(prompt, max_new_tokens=max_new_tokens)
-    else:
-        raise ValueError("generator inválido. Use 'flan-t5' ou 'tgi'.")
+CONTEXTO:
+{context_text}
 
-    return out.strip(), hits
+PERGUNTA: {question}
 
+RESPOSTA:"""
+    
+    # Carregar modelo
+    try:
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        tokenizer = AutoTokenizer.from_pretrained(config["generation_model"])
+        model = AutoModelForSeq2SeqLM.from_pretrained(config["generation_model"]).to(device)
+        
+        # Gerar resposta
+        inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=512).to(device)
+        
+        with torch.no_grad():
+            outputs = model.generate(
+                **inputs,
+                max_new_tokens=config["max_tokens"],
+                do_sample=True,
+                temperature=0.3,
+                top_p=0.9,
+                pad_token_id=tokenizer.eos_token_id
+            )
+        
+        response = tokenizer.decode(outputs[0], skip_special_tokens=True)
+        return response.strip()
+        
+    except Exception as e:
+        return f"Erro ao gerar resposta: {str(e)}"
 
-# ================================
-# Histórico
-# ================================
-
-def append_history(path: str, question: str, answer: str, retrieved: List[Retrieved]) -> None:
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    rec = {
-        "ts": int(time.time()),
-        "question": question,
-        "answer": answer,
-        "retrieved": [
-            {
-                "source": r.meta.source,
-                "chunk_id": r.meta.chunk_id,
-                "score": r.score,
-            }
-            for r in retrieved
-        ],
-    }
-    with open(path, "a", encoding="utf-8") as f:
-        f.write(json.dumps(rec, ensure_ascii=False) + "\n")
-
-
-# ================================
-# CLI
-# ================================
-
-def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="RAG Chatbot (FAQ) — ICTA Technology")
-
-    # Build index
-    p.add_argument("--build-index", action="store_true", help="Construir índice FAISS a partir de --docs-path")
-    p.add_argument("--docs-path", type=str, default="./data", help="Pasta com .txt")
-    p.add_argument("--index-path", type=str, default="./index/faiss.index", help="Caminho para salvar/ler índice FAISS")
-    p.add_argument("--meta-path", type=str, default="./index/meta.jsonl", help="Caminho para salvar/ler metadados")
-
-    # Chat
-    p.add_argument("--chat", action="store_true", help="Abrir loop de chat no terminal")
-    p.add_argument("--generator", type=str, default="flan-t5", choices=["flan-t5", "tgi"], help="Motor de geração")
-    p.add_argument("--model-name", type=str, default="google/flan-t5-base", help="Nome do modelo (para flan-t5)")
-    p.add_argument("--tgi-url", type=str, default=None, help="URL do servidor TGI (ex.: http://localhost:8080)")
-    p.add_argument("--top-k", type=int, default=5, help="Quantos trechos recuperar")
-    p.add_argument("--max-new-tokens", type=int, default=256, help="Comprimento máximo da resposta gerada")
-    p.add_argument("--system-language", type=str, default="pt", choices=["pt", "en"], help="Idioma do prompt")
-
-    # História
-    p.add_argument("--history-path", type=str, default="./history/chat_history.jsonl", help="Arquivo para registrar Q/A")
-
-    # Index params
-    p.add_argument("--chunk-size", type=int, default=800, help="Tamanho do chunk em caracteres")
-    p.add_argument("--overlap", type=int, default=120, help="Sobreposição entre chunks")
-
-    # (Bônus) LangChain — apenas uma flag explicativa
-    p.add_argument("--use-langchain", action="store_true", help="(Opcional) Exemplo de execução com LangChain se instalado")
-
-    return p.parse_args()
-
-
-def run_chat(args: argparse.Namespace) -> None:
-    # Modo sem LangChain (padrão)
-    print(Fore.MAGENTA + "\n=== Chat ICTA (RAG) ===" + Style.RESET_ALL)
-    print("Digite sua pergunta. Use /exit para sair, /show para ver os trechos recuperados mais recentes.\n")
-
-    last_hits: List[Retrieved] = []
+def start_chat():
+    """Inicia o chat interativo"""
+    config = DEFAULT_CONFIG
+    
+    print(f"\n{Fore.GREEN}💬 CHAT INTERATIVO")
+    print(f"{Fore.GREEN}{'='*40}")
+    
+    # Verificar se índice existe
+    if not os.path.exists(config["index_path"]) or not os.path.exists(config["meta_path"]):
+        print(f"{Fore.RED}❌ Base de conhecimento não encontrada!")
+        print(f"{Fore.YELLOW}💡 Execute primeiro a opção 1 (Construir Base de Conhecimento)")
+        wait_for_enter()
+        return
+    
+    print(f"{Fore.CYAN}🤖 Chatbot ICTA pronto para conversar!")
+    print(f"{Fore.YELLOW}💡 Comandos especiais:")
+    print(f"   • Digite 'sair' ou 'exit' para encerrar")
+    print(f"   • Digite 'help' para ajuda")
+    print(f"   • Digite 'status' para ver últimas buscas")
+    print()
+    
+    conversation_history = []
+    
     while True:
         try:
-            q = input(Fore.YELLOW + "Você: " + Style.RESET_ALL).strip()
-        except (EOFError, KeyboardInterrupt):
-            print("\nSaindo...")
-            break
-
-        if not q:
-            continue
-        if q.lower() in {"/exit", ":q", "sair"}:
-            print("Até mais!")
-            break
-        if q.lower() == "/show":
-            if not last_hits:
-                print("Nada recuperado ainda.")
+            question = input(f"{Fore.CYAN}🧑 Você: {Style.RESET_ALL}").strip()
+            
+            if not question:
                 continue
-            print(Fore.CYAN + "\nTrechos mais recentes:" + Style.RESET_ALL)
-            for i, r in enumerate(last_hits, 1):
-                print(f"[{i}] score={r.score:.3f} fonte={r.meta.source}#chunk{r.meta.chunk_id}")
-                print(r.text[:500].replace("\n", " ") + ("..." if len(r.text) > 500 else ""))
-                print("-")
-            continue
-
-        answer, hits = answer_question(
-            q,
-            index_path=args.index_path,
-            meta_path=args.meta_path,
-            generator_type=args.generator,
-            model_name=args.model_name,
-            tgi_url=args.tgi_url,
-            top_k=args.top_k,
-            max_new_tokens=args.max_new_tokens,
-            system_language=args.system_language,
-        )
-        last_hits = hits
-
-        print(Fore.GREEN + "Chatbot:" + Style.RESET_ALL, answer, "\n")
-        try:
-            append_history(args.history_path, q, answer, hits)
+                
+            if question.lower() in ['sair', 'exit', 'quit']:
+                print(f"{Fore.YELLOW}👋 Encerrando chat. Até logo!")
+                break
+                
+            if question.lower() == 'help':
+                print(f"\n{Fore.BLUE}📖 AJUDA DO CHAT:")
+                print(f"• Faça perguntas sobre os documentos carregados")
+                print(f"• O sistema buscará as informações mais relevantes")
+                print(f"• Se não souber, será honesto sobre isso")
+                print(f"• Digite 'sair' para encerrar")
+                print()
+                continue
+                
+            if question.lower() == 'status':
+                if conversation_history:
+                    print(f"\n{Fore.BLUE}📊 ÚLTIMAS CONVERSAS:")
+                    for i, (q, a) in enumerate(conversation_history[-3:], 1):
+                        print(f"{i}. P: {q[:50]}...")
+                        print(f"   R: {a[:50]}...")
+                    print()
+                else:
+                    print(f"{Fore.YELLOW}Nenhuma conversa ainda.")
+                continue
+            
+            print(f"{Fore.BLUE}🔍 Buscando informações...")
+            
+            # Buscar contextos relevantes
+            contexts = search_index(question, config["index_path"], config["meta_path"], config["top_k"])
+            
+            if not contexts:
+                answer = "Desculpe, não encontrei informações relevantes para sua pergunta. Pode reformular ou entrar em contato conosco?"
+            else:
+                print(f"{Fore.BLUE}🧠 Gerando resposta...")
+                answer = generate_answer(contexts, question)
+            
+            print(f"\n{Fore.GREEN}🤖 Chatbot: {Style.RESET_ALL}{answer}\n")
+            
+            # Salvar na história
+            conversation_history.append((question, answer))
+            
+            # Salvar no arquivo de histórico
+            try:
+                os.makedirs(os.path.dirname(config["history_path"]), exist_ok=True)
+                with open(config["history_path"], "a", encoding="utf-8") as f:
+                    record = {
+                        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+                        "question": question,
+                        "answer": answer,
+                        "contexts_used": len(contexts)
+                    }
+                    f.write(json.dumps(record, ensure_ascii=False) + "\n")
+            except Exception as e:
+                print(f"{Fore.YELLOW}⚠️ Não foi possível salvar no histórico: {e}")
+            
+        except KeyboardInterrupt:
+            print(f"\n{Fore.YELLOW}👋 Chat interrompido. Voltando ao menu principal...")
+            break
         except Exception as e:
-            print(f"[WARN] Falha ao salvar histórico: {e}")
+            print(f"{Fore.RED}❌ Erro no chat: {e}")
+            print(f"{Fore.YELLOW}💡 Tente novamente ou volte ao menu principal")
 
+# ================================
+# Configurações
+# ================================
+
+def show_settings():
+    """Mostra e permite alterar configurações básicas"""
+    print(f"\n{Fore.GREEN}⚙️ CONFIGURAÇÕES DO SISTEMA")
+    print(f"{Fore.GREEN}{'='*40}")
+    
+    config = DEFAULT_CONFIG
+    
+    print(f"\n{Fore.CYAN}📋 Configurações atuais:")
+    print(f"  1. Modelo de embeddings: {config['embedding_model']}")
+    print(f"  2. Modelo de geração: {config['generation_model']}")
+    print(f"  3. Tamanho do chunk: {config['chunk_size']} caracteres")
+    print(f"  4. Sobreposição: {config['overlap']} caracteres")
+    print(f"  5. Documentos por busca: {config['top_k']}")
+    print(f"  6. Tokens máximos na resposta: {config['max_tokens']}")
+    
+    print(f"\n{Fore.YELLOW}💡 Dicas:")
+    print(f"• Chunks menores = busca mais precisa, mas pode perder contexto")
+    print(f"• Mais documentos por busca = respostas mais completas")
+    print(f"• Mais tokens = respostas mais longas")
+    
+    print(f"\n{Fore.LIGHTBLACK_EX}ℹ️ Para alterar configurações, edite o arquivo de código")
+    print(f"ℹ️ Após alterações, reconstrua a base de conhecimento")
+    
+    wait_for_enter()
+
+# ================================
+# Sistema de Ajuda
+# ================================
+
+def show_help():
+    """Sistema de ajuda interativo"""
+    while True:
+        print(f"\n{Fore.CYAN}📚 CENTRAL DE AJUDA")
+        print(f"{Fore.CYAN}{'='*40}")
+        
+        print_menu_option(1, "❓ Como começar", 
+                         "Primeiros passos para usar o sistema")
+        
+        print_menu_option(2, "📁 Preparar documentos", 
+                         "Como organizar seus arquivos .txt")
+        
+        print_menu_option(3, "🔧 Solução de problemas", 
+                         "Erros comuns e soluções")
+        
+        print_menu_option(4, "💡 Dicas de uso", 
+                         "Como obter melhores resultados")
+        
+        print_menu_option(5, "📖 Sobre o projeto", 
+                         "Informações técnicas")
+        
+        print_menu_option(6, "🔙 Voltar", 
+                         "Retorna ao menu principal")
+        
+        choice = get_user_choice(6)
+        
+        if choice == 1:
+            show_getting_started()
+        elif choice == 2:
+            show_document_guide()
+        elif choice == 3:
+            show_troubleshooting()
+        elif choice == 4:
+            show_usage_tips()
+        elif choice == 5:
+            show_about()
+        elif choice == 6:
+            break
+
+def show_getting_started():
+    """Guia de primeiros passos"""
+    print(f"\n{Fore.GREEN}🚀 PRIMEIROS PASSOS")
+    print(f"{Fore.GREEN}{'='*30}")
+    print(f"""
+{Fore.CYAN}Passo 1: Preparar documentos{Style.RESET_ALL}
+• Crie/verifique a pasta 'data' no diretório do programa
+• Adicione arquivos .txt com suas FAQs e documentos
+• Use formato claro: "P: pergunta R: resposta"
+
+{Fore.CYAN}Passo 2: Construir base de conhecimento{Style.RESET_ALL}
+• No menu principal, escolha opção 1
+• Aguarde o processamento dos documentos
+• Isso criará um índice de busca inteligente
+
+{Fore.CYAN}Passo 3: Conversar com o chatbot{Style.RESET_ALL}
+• No menu principal, escolha opção 2
+• Digite suas perguntas naturalmente
+• O sistema buscará as melhores respostas
+
+{Fore.YELLOW}🎯 Dica: Comece com poucos documentos para testar!{Style.RESET_ALL}
+    """)
+    wait_for_enter()
+
+def show_document_guide():
+    """Guia para preparação de documentos"""
+    print(f"\n{Fore.GREEN}📁 GUIA DE DOCUMENTOS")
+    print(f"{Fore.GREEN}{'='*30}")
+    print(f"""
+{Fore.CYAN}Estrutura recomendada:{Style.RESET_ALL}
+data/
+├── faq_geral.txt
+├── produtos.txt
+├── suporte.txt
+└── politicas.txt
+
+{Fore.CYAN}Formato dos arquivos .txt:{Style.RESET_ALL}
+P: Como funciona o sistema?
+R: Nosso sistema utiliza inteligência artificial...
+
+P: Quais são os preços?
+R: Oferecemos planos a partir de R$ 99/mês...
+
+{Fore.CYAN}Boas práticas:{Style.RESET_ALL}
+• Use linguagem clara e direta
+• Inclua palavras-chave importantes
+• Evite textos muito longos
+• Organize por temas em arquivos separados
+• Teste com perguntas reais dos usuários
+
+{Fore.YELLOW}💡 Exemplo de bom formato:{Style.RESET_ALL}
+P: Como entrar em contato?
+R: Entre em contato pelo WhatsApp (11) 99999-9999 ou 
+email contato@ictatechnology.com. Atendemos de segunda 
+a sexta das 9h às 18h.
+    """)
+    wait_for_enter()
+
+def show_troubleshooting():
+    """Guia de solução de problemas"""
+    print(f"\n{Fore.GREEN}🔧 SOLUÇÃO DE PROBLEMAS")
+    print(f"{Fore.GREEN}{'='*35}")
+    print(f"""
+{Fore.RED}❌ "Nenhum arquivo .txt encontrado"{Style.RESET_ALL}
+• Verifique se a pasta 'data' existe
+• Confirme que há arquivos .txt na pasta
+• Verifique se os arquivos não estão vazios
+
+{Fore.RED}❌ "Modelo não encontrado"{Style.RESET_ALL}
+• Primeira execução precisa de internet
+• Aguarde o download dos modelos (pode demorar)
+• Verifique sua conexão com a internet
+
+{Fore.RED}❌ "Erro de memória"{Style.RESET_ALL}
+• Feche outros programas pesados
+• Use um modelo menor (flan-t5-small)
+• Reduza o tamanho dos chunks no código
+
+{Fore.RED}❌ "Respostas ruins"{Style.RESET_ALL}
+• Melhore a qualidade dos documentos
+• Use textos mais específicos
+• Adicione mais exemplos similares
+• Verifique se as palavras-chave estão corretas
+
+{Fore.YELLOW}🆘 Precisa de mais ajuda?{Style.RESET_ALL}
+• GitHub: https://github.com/jesseff20/rag-chatbot
+• Issues: reporte problemas no GitHub
+• Email: contato@ictatechnology.com
+    """)
+    wait_for_enter()
+
+def show_usage_tips():
+    """Dicas de uso avançado"""
+    print(f"\n{Fore.GREEN}💡 DICAS DE USO AVANÇADO")
+    print(f"{Fore.GREEN}{'='*35}")
+    print(f"""
+{Fore.CYAN}📝 Para melhores documentos:{Style.RESET_ALL}
+• Use perguntas que seus clientes realmente fazem
+• Inclua sinônimos e variações
+• Mantenha respostas focadas e diretas
+• Atualize regularmente o conteúdo
+
+{Fore.CYAN}🔍 Para melhores buscas:{Style.RESET_ALL}
+• Use palavras-chave específicas
+• Faça perguntas completas, não apenas palavras
+• Seja específico sobre o que quer saber
+• Reformule se não conseguir boa resposta
+
+{Fore.CYAN}⚙️ Para melhor performance:{Style.RESET_ALL}
+• Organize documentos por tema
+• Mantenha arquivos com tamanho moderado
+• Remova informações duplicadas
+• Teste regularmente a qualidade
+
+{Fore.CYAN}🎯 Para casos específicos:{Style.RESET_ALL}
+• FAQ geral: use linguagem informal
+• Documentação técnica: seja preciso
+• Atendimento: inclua contatos e horários
+• Produtos: especificações e preços atuais
+
+{Fore.YELLOW}🔄 Lembre-se: após mudanças nos documentos,{Style.RESET_ALL}
+{Fore.YELLOW}reconstrua a base de conhecimento (opção 1)!{Style.RESET_ALL}
+    """)
+    wait_for_enter()
+
+def show_about():
+    """Informações sobre o projeto"""
+    print(f"\n{Fore.GREEN}📖 SOBRE O PROJETO")
+    print(f"{Fore.GREEN}{'='*30}")
+    print(f"""
+{Fore.CYAN}RAG Chatbot ICTA Technology{Style.RESET_ALL}
+Versão: 2.0 - Interface Simplificada
+Data: Agosto 2025
+
+{Fore.CYAN}👨‍💻 Desenvolvido por:{Style.RESET_ALL}
+Jesse Fernandes
+ICTA Technology
+Email: jesse.fernandes@ictatechnology.com
+
+{Fore.CYAN}🔧 Tecnologias utilizadas:{Style.RESET_ALL}
+• FAISS - Busca vetorial Facebook AI
+• Sentence Transformers - Embeddings de texto
+• FLAN-T5 - Modelo de linguagem Google
+• Python 3.8+ - Linguagem de programação
+
+{Fore.CYAN}✨ Características:{Style.RESET_ALL}
+• 100% local (sem APIs pagas)
+• Interface amigável e interativa
+• Configuração automática
+• Suporte a múltiplos documentos
+• Histórico de conversas
+
+{Fore.CYAN}📄 Licença:{Style.RESET_ALL}
+MIT License - Uso livre e modificação permitida
+
+{Fore.CYAN}🌐 Links importantes:{Style.RESET_ALL}
+• GitHub: https://github.com/jesseff20/rag-chatbot
+• Issues: https://github.com/jesseff20/rag-chatbot/issues
+• Documentação: Arquivo README.md
+
+{Fore.YELLOW}💝 Desenvolvido com ❤️ para a comunidade!{Style.RESET_ALL}
+{Fore.YELLOW}Contribuições e sugestões são bem-vindas.{Style.RESET_ALL}
+    """)
+    wait_for_enter()
+
+# ================================
+# Função Principal
+# ================================
 
 def main():
-    args = parse_args()
-
-    if args.build_index:
-        build_faiss_index(
-            docs_folder=args.docs_path,
-            index_path=args.index_path,
-            meta_path=args.meta_path,
-            chunk_size=args.chunk_size,
-            overlap=args.overlap,
-        )
-        return
-
-    if args.chat:
-        # Modo opcional com LangChain (se for realmente desejado)
-        if args.use_langchain:
-            try:
-                from langchain_community.vectorstores import FAISS as LCFAISS
-                from langchain_community.embeddings import HuggingFaceEmbeddings
-                from langchain.llms import HuggingFacePipeline
-                from transformers import pipeline
-
-                print(Fore.BLUE + "[LangChain] Inicializando cadeia..." + Style.RESET_ALL)
-
-                # Carregar índice FAISS existente para LangChain (reconstruindo a partir de meta + FAISS)
-                # Simplesmente re-embedar com o mesmo modelo e reconstruir LCFAISS a partir do corpus.
-                # (para reuso direto do .index seria necessário salvar também mapping; mantemos simples)
-                meta = load_meta(args.meta_path)
-                texts = [m["text"] for m in meta]
-                embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-                vectordb = LCFAISS.from_texts(texts, embeddings)
-
-                # Gerador via pipeline (FLAN-T5)
-                pipe = pipeline(
-                    "text2text-generation",
-                    model=args.model_name,
-                    tokenizer=args.model_name,
-                    max_new_tokens=args.max_new_tokens,
-                )
-                llm = HuggingFacePipeline(pipeline=pipe)
-
-                from langchain.prompts import PromptTemplate
-                from langchain.chains import RetrievalQA
-
-                template = (
-                    "Você é um assistente da ICTA Technology. Responda APENAS usando o contexto.\n"
-                    "Se não houver resposta no contexto, diga que não sabe.\n\n"
-                    "Contexto:\n{context}\n\nPergunta: {question}\nResposta:" )
-                prompt = PromptTemplate(template=template, input_variables=["context", "question"])  # type: ignore
-
-                qa = RetrievalQA.from_chain_type(
-                    llm=llm,
-                    chain_type="stuff",
-                    retriever=vectordb.as_retriever(search_kwargs={"k": args.top_k}),
-                    chain_type_kwargs={"prompt": prompt},
-                    return_source_documents=True,
-                )
-
-                print(Fore.MAGENTA + "\n=== Chat ICTA (RAG c/ LangChain) ===" + Style.RESET_ALL)
-                print("Digite sua pergunta. /exit para sair.\n")
-                while True:
-                    try:
-                        q = input(Fore.YELLOW + "Você: " + Style.RESET_ALL).strip()
-                    except (EOFError, KeyboardInterrupt):
-                        print("\nSaindo...")
-                        break
-                    if not q:
-                        continue
-                    if q.lower() in {"/exit", ":q", "sair"}:
-                        print("Até mais!")
-                        break
-                    res = qa({"query": q})
-                    ans = res.get("result", "(sem resposta)")
-                    print(Fore.GREEN + "Chatbot:" + Style.RESET_ALL, ans, "\n")
-            except Exception as e:
-                print(Fore.RED + f"[LangChain] Erro: {e}\nVoltando ao modo padrão sem LangChain..." + Style.RESET_ALL)
-                run_chat(args)
-        else:
-            run_chat(args)
-        return
-
-    # Se nenhum modo foi escolhido
-    print("Nada a fazer. Use --build-index ou --chat. --help para ajuda.")
-
+    """Função principal com menu interativo"""
+    # Configuração inicial
+    print_header()
+    
+    # Loop principal
+    while True:
+        show_main_menu()
+        choice = get_user_choice(6)
+        
+        if choice == 1:
+            build_knowledge_base()
+        elif choice == 2:
+            start_chat()
+        elif choice == 3:
+            check_system_status()
+        elif choice == 4:
+            show_settings()
+        elif choice == 5:
+            show_help()
+        elif choice == 6:
+            print(f"\n{Fore.GREEN}👋 Obrigado por usar o RAG Chatbot ICTA!")
+            print(f"{Fore.GREEN}Até logo!")
+            break
 
 if __name__ == "__main__":
     main()
