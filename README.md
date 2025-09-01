@@ -179,14 +179,19 @@ python rag_chatbot_icta.py
 
 ## 📁 Como Preparar Seus Documentos
 
-### 📂 **Estrutura de Dados JSONL**
+### 📂 **Estrutura de Dados JSONL Atual**
 ```
 data/
-├── faq_geral_icta.jsonl
-├── integracoes_totvs.jsonl  
-├── business_intelligence.jsonl
-├── automacao_processos.jsonl
-└── cortesia_saudacoes.jsonl
+├── answers_only_consolidated.jsonl     (273 entradas)
+├── cortesia_saudacoes_answers.jsonl    (25 entradas)
+├── empresa_contato_equipe_answers.jsonl (25 entradas)
+├── faq_geral_icta_answers.jsonl        (43 entradas)
+├── icta_all_corpus_answers.jsonl       (111 entradas)
+├── integracoes_totvs_answers.jsonl     (19 entradas)
+├── politica_respostas_answers.jsonl    (20 entradas)
+└── servicos_bi_automacao_ia_answers.jsonl (30 entradas)
+
+TOTAL: 8 arquivos | 546 entradas | 317 chunks indexados
 ```
 
 ### 📝 **Formato dos Arquivos .jsonl (Recomendado)**
@@ -214,7 +219,7 @@ R: Entre em contato pelo WhatsApp (11) 99999-9999...
 - ✅ Respostas claras e diretas (máximo 600 tokens)
 - ✅ Inclua tags relevantes para melhor busca
 - ✅ Organize por temas em arquivos separados
-- ✅ **Base Atual**: 546 entradas em 8 arquivos JSONL
+- ✅ **Base Atual**: 546 entradas em 8 arquivos JSONL (317 chunks indexados)
 - ❌ Evite textos muito longos
 - ❌ Não use informações desatualizadas
 
@@ -269,7 +274,7 @@ R: Entre em contato pelo WhatsApp (11) 99999-9999...
 
 ### ⚡ **Performance Otimizada**
 - **Primeira execução**: 5-20 minutos (download FLAN-T5 base)
-- **Construção da base**: 2-15 minutos (546 documentos JSONL)
+- **Construção da base**: 2-15 minutos (546 documentos → 317 chunks)
 - **Chat RAG**: Respostas em 3-8 segundos
 - **Chat FLAN-T5**: Respostas em 5-15 segundos
 - **Funcionamento**: 100% offline após configuração
@@ -280,6 +285,7 @@ R: Entre em contato pelo WhatsApp (11) 99999-9999...
 - **FLAN-T5**: Até 300 tokens de saída
 - **RAG Score**: Threshold 0.4 para qualidade
 - **Fallback**: Múltiplas camadas de segurança
+- **Base Indexada**: 317 chunks de 546 entradas totais
 
 ## 🆘 Solução de Problemas Comum
 
@@ -320,21 +326,27 @@ R: Entre em contato pelo WhatsApp (11) 99999-9999...
 
 ```
 rag-chatbot/
-├── 📄 rag_chatbot_icta.py        # Programa principal (interface interativa)
-├── 📄 requirements.txt           # Dependências Python
-├── 📄 setup.py                   # Instalador automático
-├── 📄 README.md                  # Este arquivo
-├── 📁 data/                      # Seus documentos .txt
-│   ├── faq_geral_icta.txt
-│   ├── integracoes_totvs.txt
-│   └── ...
-├── 📁 index/                     # Índices gerados automaticamente
-│   ├── faiss.index
-│   ├── meta.jsonl
-│   └── settings.json
-├── 📁 history/                   # Histórico de conversas
-├── 📁 tests/                     # Testes automatizados
-└── 📁 docs/                      # Documentação adicional
+├── 📄 rag_chatbot_icta.py               # Programa principal (sistema híbrido RAG+FLAN-T5)
+├── 📄 requirements.txt                  # Dependências Python atualizadas v4.0
+├── 📄 setup.py                          # Instalador automático
+├── 📄 README.md                         # Este arquivo (documentação v4.0)
+├── � CHANGELOG.md                      # Histórico de versões detalhado
+├── �📁 data/                             # Base de conhecimento ICTA (546 entradas)
+│   ├── answers_only_consolidated.jsonl  (273 entradas)
+│   ├── cortesia_saudacoes_answers.jsonl (25 entradas)
+│   ├── empresa_contato_equipe_answers.jsonl (25 entradas)
+│   ├── faq_geral_icta_answers.jsonl     (43 entradas)
+│   ├── icta_all_corpus_answers.jsonl    (111 entradas)
+│   ├── integracoes_totvs_answers.jsonl  (19 entradas)
+│   ├── politica_respostas_answers.jsonl (20 entradas)
+│   └── servicos_bi_automacao_ia_answers.jsonl (30 entradas)
+├── 📁 index/                            # Índices FAISS (317 chunks indexados)
+│   ├── faiss.index                      # Índice vetorial principal
+│   ├── meta.jsonl                       # Metadados dos chunks
+│   └── settings.json                    # Configurações do índice
+├── 📁 history/                          # Histórico de conversas
+├── 📁 __pycache__/                      # Cache Python
+└── 📁 .git/                             # Controle de versão Git
 ```
 
 ## 🤝 Contribuindo
@@ -368,7 +380,7 @@ Quer ajudar a melhorar o projeto? Ficamos felizes!
 - **Nome**: Jesse Fernandes
 - **Empresa**: ICTA Technology
 - **GitHub**: [@jesseff20](https://github.com/jesseff20)
-- **Email**: jesse.fernandes@ictatechnology.com
+- **Email**: jesse.fernandes@ictatechnology.com.br
 
 ## 📜 Licença
 
@@ -427,16 +439,6 @@ Este projeto está licenciado sob a **MIT License** - veja o arquivo [LICENSE](L
 - **Histórico Melhorado**: Conversas salvas com timestamp
 - **Performance Monitoring**: Métricas internas de qualidade
 
-### 🐛 **Correções Importantes**
-- Problemas de encoding em caracteres especiais
-- Loops infinitos em respostas inadequadas  
-- Travamentos com contextos muito longos
-- Inconsistências na interface multilíngue
-- Problemas de memória com modelos grandes
-
----
-
-## 🚀 Changelog da Versão 3.0 (Anterior)
 
 ### ✨ **Novidades**
 - **Interface Totalmente Interativa**: Menus coloridos substituem linha de comando
